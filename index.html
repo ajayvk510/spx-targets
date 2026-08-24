@@ -12,282 +12,149 @@ function updateSPX() {
 
   const SHEET_NAME = "SPX";
 
-
-  // ==============================
-  // GET GOOGLE SHEET
-  // ==============================
-
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-
   let sheet = ss.getSheetByName(SHEET_NAME);
-
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
   }
 
+  try {
 
-  // ==============================
-  // GET YAHOO DATA
-  // ==============================
+    // ==============================
+    // GET YAHOO DATA
+    // ==============================
 
-  const response = UrlFetchApp.fetch(YAHOO_URL, {
-    muteHttpExceptions: true
-  });
+    const response = UrlFetchApp.fetch(YAHOO_URL, {
+      muteHttpExceptions: true,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+      }
+    });
 
-  if (response.getResponseCode() !== 200) {
-    throw new Error(
-      "Yahoo Finance error: " +
-      response.getResponseCode()
-    );
-  }
+    const code = response.getResponseCode();
+    const body = response.getContentText();
 
-  const json = JSON.parse(response.getContentText());
-
-  const result =
-    json.chart.result[0];
-
-  const meta = result.meta;
-
-
-  // ==============================
-  // PREVIOUS CLOSE
-  // ==============================
-
-  const previousClose =
-    meta.chartPreviousClose ||
-    meta.previousClose;
-
-
-  // ==============================
-  // TODAY'S OPEN
-  // ==============================
-
-  const timestamps =
-    result.timestamp || [];
-
-  const opens =
-    result.indicators.quote[0].open || [];
-
-  const timezone =
-    meta.exchangeTimezoneName ||
-    "America/New_York";
-
-  const todayKey =
-    new Date(meta.regularMarketTime * 1000)
-      .toLocaleDateString(
-        "en-CA",
-        { timeZone: timezone }
-      );
-
-  let todayOpen = null;
-
-  for (
-    let i = timestamps.length - 1;
-    i >= 0;
-    i--
-  ) {
-
-    const key =
-      new Date(timestamps[i] * 1000)
-        .toLocaleDateString(
-          "en-CA",
-          { timeZone: timezone }
-        );
-
-    if (
-      key === todayKey &&
-      typeof opens[i] === "number"
-    ) {
-      todayOpen = opens[i];
-      break;
+    if (code !== 200) {
+      throw new Error("Yahoo Finance HTTP " + code + ": " + body.slice(0, 300));
     }
+
+    const json = JSON.parse(body);
+
+    if (json.chart.error) {
+      throw new Error("Yahoo API error: " + JSON.stringify(json.chart.error));
+    }
+
+    const result = json.chart.result && json.chart.result[0];
+    if (!result || !result.meta) {
+      throw new Error("Unexpected Yahoo response shape: " + body.slice(0, 300));
+    }
+
+    const meta = result.meta;
+
+    // ==============================
+    // PREVIOUS CLOSE
+    // ==============================
+
+    const previousClose = meta.chartPreviousClose || meta.previousClose;
+    if (typeof previousClose !== "number") {
+      throw new Error("Missing previousClose in Yahoo response");
+    }
+
+    // ==============================
+    // TODAY'S OPEN
+    // ==============================
+
+    const timestamps = result.timestamp || [];
+    const opens = (result.indicators && result.indicators.quote &&
+      result.indicators.quote[0] && result.indicators.quote[0].open) || [];
+    const timezone = meta.exchangeTimezoneName || "America/New_York";
+
+    const refTime = meta.regularMarketTime
+      ? new Date(meta.regularMarketTime * 1000)
+      : new Date();
+
+    const todayKey = refTime.toLocaleDateString("en-CA", { timeZone: timezone });
+
+    let todayOpen = null;
+    for (let i = timestamps.length - 1; i >= 0; i--) {
+      const key = new Date(timestamps[i] * 1000).toLocaleDateString("en-CA", { timeZone: timezone });
+      if (key === todayKey && typeof opens[i] === "number") {
+        todayOpen = opens[i];
+        break;
+      }
+    }
+    if (todayOpen === null || todayOpen === undefined) {
+      todayOpen = previousClose;
+    }
+
+    // ==============================
+    // CURRENT SPX / TARGETS
+    // ==============================
+
+    const currentPrice = meta.regularMarketPrice;
+    const openChangePct = ((todayOpen - previousClose) / previousClose) * 100;
+
+    const up02 = previousClose * 1.002;
+    const up05 = previousClose * 1.005;
+    const down02 = previousClose * 0.998;
+    const down05 = previousClose * 0.995;
+
+    // ==============================
+    // WRITE TO SHEET
+    // ==============================
+
+    sheet.clear();
+
+    sheet.getRange("A1:B1").merge();
+    sheet.getRange("A1")
+      .setValue("SPX DAILY TARGETS")
+      .setFontWeight("bold")
+      .setFontSize(16)
+      .setHorizontalAlignment("center");
+
+    const values = [
+      ["Previous Close", previousClose],
+      ["Today's Open", todayOpen],
+      ["Open Change %", openChangePct / 100],
+      ["", ""],
+      ["TARGETS", ""],
+      ["+0.20%", up02],
+      ["+0.50%", up05],
+      ["-0.20%", down02],
+      ["-0.50%", down05],
+      ["", ""],
+      ["Current SPX", currentPrice],
+      ["Last Updated", new Date()]
+    ];
+
+    sheet.getRange(2, 1, values.length, 2).setValues(values);
+
+    sheet.getRange("B2:B3").setNumberFormat("#,##0.00");
+    sheet.getRange("B4").setNumberFormat("0.00%");
+    sheet.getRange("B7:B10").setNumberFormat("#,##0.00");
+    sheet.getRange("B12").setNumberFormat("#,##0.00");
+    sheet.getRange("B13").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+
+    sheet.getRange("A7:B8").setFontColor("#16C784");
+    sheet.getRange("A9:B10").setFontColor("#EA3943");
+    sheet.getRange("A6:B6").setFontWeight("bold").setHorizontalAlignment("center");
+
+    sheet.setColumnWidth(1, 180);
+    sheet.setColumnWidth(2, 130);
+
+    sheet.getRange("A1:B13").setBorder(true, true, true, true, true, true);
+    sheet.getRange("B2:B13").setHorizontalAlignment("right");
+
+  } catch (err) {
+
+    // Surface the real error in the sheet instead of failing silently
+    sheet.clear();
+    sheet.getRange("A1").setValue("SPX update failed").setFontWeight("bold").setFontColor("#EA3943");
+    sheet.getRange("A2").setValue(String(err));
+    sheet.getRange("A3").setValue("Last attempt: " + new Date());
+    throw err; // still shows in Executions log too
+
   }
-
-
-  // ==============================
-  // FALLBACK
-  // ==============================
-
-  if (
-    todayOpen === null ||
-    todayOpen === undefined
-  ) {
-    todayOpen = previousClose;
-  }
-
-
-  // ==============================
-  // CURRENT SPX
-  // ==============================
-
-  const currentPrice =
-    meta.regularMarketPrice;
-
-
-  // ==============================
-  // OPEN CHANGE %
-  // ==============================
-
-  const openChangePct =
-    ((todayOpen - previousClose) /
-      previousClose) * 100;
-
-
-  // ==============================
-  // TARGETS
-  // ==============================
-
-  const up02 =
-    previousClose * 1.002;
-
-  const up05 =
-    previousClose * 1.005;
-
-  const down02 =
-    previousClose * 0.998;
-
-  const down05 =
-    previousClose * 0.995;
-
-
-  // ==============================
-  // CLEAR SHEET
-  // ==============================
-
-  sheet.clear();
-
-
-  // ==============================
-  // TITLE
-  // ==============================
-
-  sheet.getRange("A1:B1")
-    .merge();
-
-  sheet.getRange("A1")
-    .setValue("SPX DAILY TARGETS")
-    .setFontWeight("bold")
-    .setFontSize(16)
-    .setHorizontalAlignment("center");
-
-
-  // ==============================
-  // DATA
-  // ==============================
-
-  const values = [
-
-    ["Previous Close", previousClose],
-
-    ["Today's Open", todayOpen],
-
-    ["Open Change %", openChangePct / 100],
-
-    ["", ""],
-
-    ["TARGETS", ""],
-
-    ["+0.20%", up02],
-
-    ["+0.50%", up05],
-
-    ["-0.20%", down02],
-
-    ["-0.50%", down05],
-
-    ["", ""],
-
-    ["Current SPX", currentPrice],
-
-    ["Last Updated", new Date()]
-
-  ];
-
-
-  sheet
-    .getRange(2, 1, values.length, 2)
-    .setValues(values);
-
-
-  // ==============================
-  // FORMATTING
-  // ==============================
-
-  sheet
-    .getRange("B2:B3")
-    .setNumberFormat("#,##0.00");
-
-  sheet
-    .getRange("B4")
-    .setNumberFormat("0.00%");
-
-  sheet
-    .getRange("B7:B10")
-    .setNumberFormat("#,##0.00");
-
-  sheet
-    .getRange("B12")
-    .setNumberFormat("#,##0.00");
-
-  sheet
-    .getRange("B13")
-    .setNumberFormat(
-      "yyyy-mm-dd hh:mm:ss"
-    );
-
-
-  // ==============================
-  // TARGET FORMATTING
-  // ==============================
-
-  sheet
-    .getRange("A7:B8")
-    .setFontColor("#16C784");
-
-  sheet
-    .getRange("A9:B10")
-    .setFontColor("#EA3943");
-
-
-  // ==============================
-  // HEADER FORMATTING
-  // ==============================
-
-  sheet
-    .getRange("A6:B6")
-    .setFontWeight("bold")
-    .setHorizontalAlignment("center");
-
-
-  // ==============================
-  // COLUMN WIDTH
-  // ==============================
-
-  sheet.setColumnWidth(1, 180);
-  sheet.setColumnWidth(2, 130);
-
-
-  // ==============================
-  // BORDERS
-  // ==============================
-
-  sheet
-    .getRange("A1:B13")
-    .setBorder(
-      true,
-      true,
-      true,
-      true,
-      true,
-      true
-    );
-
-
-  // ==============================
-  // ALIGNMENT
-  // ==============================
-
-  sheet
-    .getRange("B2:B13")
-    .setHorizontalAlignment("right");
 }
