@@ -70,3 +70,237 @@
   .refresh-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
   .status{
     display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
+  .dot.live{background:var(--up);}
+  .error-box{
+    max-width:460px;
+    padding:12px 14px;
+    background:rgba(234,57,67,0.08);
+    border:1px solid rgba(234,57,67,0.3);
+    border-radius:8px;
+    font-size:12.5px;
+    color:#F5A5A9;
+    line-height:1.5;
+    display:none;
+    font-family:'Inter',sans-serif;
+  }
+  @media (max-width:480px){
+    pre#box{font-size:12.5px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <pre id="box">Loading…</pre>
+  <div class="error-box" id="errorBox"></div>
+  <div class="controls">
+    <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">loading</span></span>
+    <span id="fetchedText">not yet loaded</span>
+    <button class="refresh-btn" id="refreshBtn">Refresh</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const boxEl = document.getElementById('box');
+  const errorBox = document.getElementById('errorBox');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const fetchedText = document.getElementById('fetchedText');
+  const refreshBtn = document.getElementById('refreshBtn');
+
+  const SYMBOL = '%5EGSPC'; // ^GSPC
+  const YAHOO_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/' + SYMBOL + '?interval=1d&range=5d';
+  const REFRESH_MS = 60000;
+  let countdownTimer = null;
+  let secondsLeft = REFRESH_MS / 1000;
+  let lastFetchLocal = null;
+
+  function fmtPrice(n){
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function fmtPct(n){
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    const sign = n > 0 ? '+' : (n < 0 ? '' : '');
+    return sign + n.toFixed(2) + '%';
+  }
+
+  async function fetchQuote(){
+    const attempts = [
+      () => fetch(YAHOO_URL, {cache:'no-store'}),
+      () => fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(YAHOO_URL), {cache:'no-store'}),
+      () => fetch('https://corsproxy.io/?url=' + encodeURIComponent(YAHOO_URL), {cache:'no-store'})
+    ];
+    let lastErr = null;
+    for (const attempt of attempts){
+      try {
+        const res = await attempt();
+        if (!res.ok) throw new Error('bad response ' + res.status);
+        const data = await res.json();
+        const result = data && data.chart && data.chart.result && data.chart.result[0];
+        if (!result || !result.meta) throw new Error('unexpected payload');
+        return result;
+      } catch(e){
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('all sources failed');
+  }
+
+  function todaysOpen(result){
+    const meta = result.meta;
+    const tz = meta.exchangeTimezoneName || 'America/New_York';
+    const timestamps = result.timestamp || [];
+    const opens = (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].open) || [];
+    if (!timestamps.length) return null;
+
+    const todayKey = new Date(meta.regularMarketTime * 1000).toLocaleDateString('en-CA', {timeZone: tz});
+    for (let i = timestamps.length - 1; i >= 0; i--){
+      const key = new Date(timestamps[i] * 1000).toLocaleDateString('en-CA', {timeZone: tz});
+      if (key === todayKey && typeof opens[i] === 'number'){
+        return opens[i];
+      }
+    }
+    return null;
+  }
+
+  function boxRow(label, value, innerWidth, trailingMargin){
+    const valueEndIdx = innerWidth - trailingMargin;
+    const arr = new Array(innerWidth).fill(' ');
+    const labelStr = ' ' + label;
+    for (let i = 0; i < labelStr.length && i < innerWidth; i++){
+      arr[i] = labelStr[i];
+    }
+    for (let i = 0; i < value.length; i++){
+      const pos = valueEndIdx - value.length + i;
+      if (pos >= 0 && pos < innerWidth) arr[pos] = value[i];
+    }
+    return '│' + arr.join('') + '│';
+  }
+
+  function buildBox(data){
+    const INNER = 37;
+    const MARGIN = 7;
+    const top    = '┌' + '─'.repeat(INNER) + '┐';
+    const div    = '├' + '─'.repeat(INNER) + '┤';
+    const bottom = '└' + '─'.repeat(INNER) + '┘';
+
+    const titleText = 'SPX DAILY TARGETS';
+    const pad = INNER - titleText.length;
+    const leftPad = Math.floor(pad/2);
+    const rightPad = pad - leftPad;
+    const titleRow = '│' + ' '.repeat(leftPad) + titleText + ' '.repeat(rightPad) + '│';
+
+    const lines = [];
+    lines.push(top);
+    lines.push(titleRow);
+    lines.push(div);
+    lines.push('│' + ' '.repeat(INNER) + '│');
+    lines.push({t: boxRow('Previous Close', fmtPrice(data.prevClose), INNER, MARGIN)});
+    lines.push({t: boxRow("Today's Open", fmtPrice(data.open), INNER, MARGIN)});
+    lines.push({t: boxRow('Open Change', fmtPct(data.openChangePct), INNER, MARGIN), cls: data.openChangePct > 0 ? 'up-line' : (data.openChangePct < 0 ? 'down-line' : '')});
+    lines.push('│' + ' '.repeat(INNER) + '│');
+    lines.push(div);
+    const targetsTitle = 'TARGETS';
+    const tpad = INNER - targetsTitle.length;
+    const tleft = Math.floor(tpad/2);
+    const tright = tpad - tleft;
+    lines.push('│' + ' '.repeat(tleft) + targetsTitle + ' '.repeat(tright) + '│');
+    lines.push('│' + ' '.repeat(INNER) + '│');
+    lines.push({t: boxRow('+0.20%', fmtPrice(data.up02), INNER, MARGIN), cls:'up-line'});
+    lines.push({t: boxRow('+0.50%', fmtPrice(data.up05), INNER, MARGIN), cls:'up-line'});
+    lines.push('│' + ' '.repeat(INNER) + '│');
+    lines.push({t: boxRow('-0.20%', fmtPrice(data.down02), INNER, MARGIN), cls:'down-line'});
+    lines.push({t: boxRow('-0.50%', fmtPrice(data.down05), INNER, MARGIN), cls:'down-line'});
+    lines.push(bottom);
+
+    boxEl.innerHTML = '';
+    lines.forEach(l => {
+      const span = document.createElement('span');
+      if (typeof l === 'string'){
+        span.textContent = l;
+      } else {
+        span.textContent = l.t;
+        if (l.cls) span.className = l.cls;
+      }
+      boxEl.appendChild(span);
+      boxEl.appendChild(document.createTextNode('\n'));
+    });
+  }
+
+  function marketStateLabel(state){
+    switch(state){
+      case 'REGULAR': return 'market open';
+      case 'PRE': return 'pre-market';
+      case 'POST': case 'POSTPOST': return 'after hours';
+      case 'CLOSED': return 'market closed';
+      default: return state ? state.toLowerCase() : 'unknown';
+    }
+  }
+
+  function startCountdown(){
+    clearInterval(countdownTimer);
+    secondsLeft = REFRESH_MS / 1000;
+    updateFetchedText();
+    countdownTimer = setInterval(() => {
+      secondsLeft = Math.max(0, secondsLeft - 1);
+      updateFetchedText();
+    }, 1000);
+  }
+
+  function updateFetchedText(){
+    const local = lastFetchLocal ? lastFetchLocal.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit'}) : '—';
+    fetchedText.textContent = 'fetched ' + local + ' · next in ' + secondsLeft + 's';
+  }
+
+  async function load(){
+    refreshBtn.disabled = true;
+    try {
+      const result = await fetchQuote();
+      const meta = result.meta;
+      const prevClose = meta.chartPreviousClose || meta.previousClose;
+      let open = todaysOpen(result);
+      if (open === null || open === undefined){
+        open = prevClose;
+      }
+      const openChangePct = ((open - prevClose) / prevClose) * 100;
+
+      const data = {
+        prevClose: prevClose,
+        open: open,
+        openChangePct: openChangePct,
+        up02: prevClose * 1.002,
+        up05: prevClose * 1.005,
+        down02: prevClose * 0.998,
+        down05: prevClose * 0.995
+      };
+      buildBox(data);
+
+      statusText.textContent = marketStateLabel(meta.marketState);
+      statusDot.classList.toggle('live', meta.marketState === 'REGULAR');
+      errorBox.style.display = 'none';
+      lastFetchLocal = new Date();
+    } catch(e){
+      errorBox.style.display = 'block';
+      errorBox.textContent = 'Could not load a live price right now (network or source blocked). Try Refresh, or check again shortly — this page uses free public data sources with no guaranteed uptime.';
+      statusText.textContent = 'error';
+      statusDot.classList.remove('live');
+    } finally {
+      refreshBtn.disabled = false;
+      startCountdown();
+    }
+  }
+
+  refreshBtn.addEventListener('click', load);
+  load();
+  setInterval(load, REFRESH_MS);
+})();
+</script>
+
+</body>
+</html>
