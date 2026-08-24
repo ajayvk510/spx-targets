@@ -1,306 +1,194 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SPX Daily Targets</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#0B0E11;
-    --text:#E8EAED;
-    --muted:#6B7280;
-    --up:#16C784;
-    --down:#EA3943;
-    --amber:#F0B90B;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{
-    height:100%;
-    background:var(--bg);
-    color:var(--text);
-  }
-  body{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    min-height:100vh;
-    padding:24px;
-    font-family:'Inter',sans-serif;
-  }
-  .wrap{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:16px;
-  }
-  pre#box{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:16px;
-    line-height:1.55;
-    white-space:pre;
-    color:var(--text);
-  }
-  .up-line{color:var(--up);}
-  .down-line{color:var(--down);}
-  .amber-line{color:var(--amber);}
-  .controls{
-    display:flex;
-    align-items:center;
-    gap:14px;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12px;
-    color:var(--muted);
-  }
-  .refresh-btn{
-    font-family:'Inter',sans-serif;
-    font-size:12px;
-    font-weight:600;
-    color:var(--text);
-    background:#1E242B;
-    border:none;
-    border-radius:7px;
-    padding:7px 14px;
-    cursor:pointer;
-  }
-  .refresh-btn:hover{background:#2A323C;}
-  .refresh-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
-  .status{
-    display:flex;
-    align-items:center;
-    gap:6px;
-  }
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
-  .dot.live{background:var(--up);}
-  .error-box{
-    max-width:460px;
-    padding:12px 14px;
-    background:rgba(234,57,67,0.08);
-    border:1px solid rgba(234,57,67,0.3);
-    border-radius:8px;
-    font-size:12.5px;
-    color:#F5A5A9;
-    line-height:1.5;
-    display:none;
-    font-family:'Inter',sans-serif;
-  }
-  @media (max-width:480px){
-    pre#box{font-size:12.5px;}
-  }
-</style>
-</head>
-<body>
+function updateSPX() {
 
-<div class="wrap">
-  <pre id="box">Loading…</pre>
-  <div class="error-box" id="errorBox"></div>
-  <div class="controls">
-    <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">loading</span></span>
-    <span id="fetchedText">not yet loaded</span>
-    <button class="refresh-btn" id="refreshBtn">Refresh</button>
-  </div>
-</div>
+  // ==============================
+  // SETTINGS
+  // ==============================
 
-<script>
-(function(){
-  const boxEl = document.getElementById('box');
-  const errorBox = document.getElementById('errorBox');
-  const statusDot = document.getElementById('statusDot');
-  const statusText = document.getElementById('statusText');
-  const fetchedText = document.getElementById('fetchedText');
-  const refreshBtn = document.getElementById('refreshBtn');
+  const SYMBOL = "%5EGSPC";
+  const YAHOO_URL =
+    "https://query1.finance.yahoo.com/v8/finance/chart/" +
+    SYMBOL +
+    "?interval=1d&range=5d";
 
-  const SYMBOL = '%5EGSPC'; // ^GSPC
-  const YAHOO_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/' + SYMBOL + '?interval=1d&range=5d';
-  const REFRESH_MS = 60000;
-  let countdownTimer = null;
-  let secondsLeft = REFRESH_MS / 1000;
-  let lastFetchLocal = null;
+  const SHEET_NAME = "SPX";
+  const INNER = 40; // interior width of the box — widen if numbers ever run longer
 
-  function fmtPrice(n){
-    if (n === null || n === undefined || isNaN(n)) return '—';
-    return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-  }
-  function fmtPct(n){
-    if (n === null || n === undefined || isNaN(n)) return '—';
-    const sign = n > 0 ? '+' : (n < 0 ? '' : '');
-    return sign + n.toFixed(2) + '%';
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
   }
 
-  async function fetchQuote(){
-    const attempts = [
-      () => fetch(YAHOO_URL, {cache:'no-store'}),
-      () => fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(YAHOO_URL), {cache:'no-store'}),
-      () => fetch('https://corsproxy.io/?url=' + encodeURIComponent(YAHOO_URL), {cache:'no-store'})
-    ];
-    let lastErr = null;
-    for (const attempt of attempts){
-      try {
-        const res = await attempt();
-        if (!res.ok) throw new Error('bad response ' + res.status);
-        const data = await res.json();
-        const result = data && data.chart && data.chart.result && data.chart.result[0];
-        if (!result || !result.meta) throw new Error('unexpected payload');
-        return result;
-      } catch(e){
-        lastErr = e;
+  try {
+
+    // ==============================
+    // GET YAHOO DATA
+    // ==============================
+
+    const response = UrlFetchApp.fetch(YAHOO_URL, {
+      muteHttpExceptions: true,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json"
       }
-    }
-    throw lastErr || new Error('all sources failed');
-  }
-
-  function todaysOpen(result){
-    const meta = result.meta;
-    const tz = meta.exchangeTimezoneName || 'America/New_York';
-    const timestamps = result.timestamp || [];
-    const opens = (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].open) || [];
-    if (!timestamps.length) return null;
-
-    const todayKey = new Date(meta.regularMarketTime * 1000).toLocaleDateString('en-CA', {timeZone: tz});
-    for (let i = timestamps.length - 1; i >= 0; i--){
-      const key = new Date(timestamps[i] * 1000).toLocaleDateString('en-CA', {timeZone: tz});
-      if (key === todayKey && typeof opens[i] === 'number'){
-        return opens[i];
-      }
-    }
-    return null;
-  }
-
-  function boxRow(label, value, innerWidth, trailingMargin){
-    const valueEndIdx = innerWidth - trailingMargin;
-    const arr = new Array(innerWidth).fill(' ');
-    const labelStr = ' ' + label;
-    for (let i = 0; i < labelStr.length && i < innerWidth; i++){
-      arr[i] = labelStr[i];
-    }
-    for (let i = 0; i < value.length; i++){
-      const pos = valueEndIdx - value.length + i;
-      if (pos >= 0 && pos < innerWidth) arr[pos] = value[i];
-    }
-    return '│' + arr.join('') + '│';
-  }
-
-  function buildBox(data){
-    const INNER = 37;
-    const MARGIN = 7;
-    const top    = '┌' + '─'.repeat(INNER) + '┐';
-    const div    = '├' + '─'.repeat(INNER) + '┤';
-    const bottom = '└' + '─'.repeat(INNER) + '┘';
-
-    const titleText = 'SPX DAILY TARGETS';
-    const pad = INNER - titleText.length;
-    const leftPad = Math.floor(pad/2);
-    const rightPad = pad - leftPad;
-    const titleRow = '│' + ' '.repeat(leftPad) + titleText + ' '.repeat(rightPad) + '│';
-
-    const lines = [];
-    lines.push(top);
-    lines.push(titleRow);
-    lines.push(div);
-    lines.push('│' + ' '.repeat(INNER) + '│');
-    lines.push({t: boxRow('Previous Close', fmtPrice(data.prevClose), INNER, MARGIN)});
-    lines.push({t: boxRow("Today's Open", fmtPrice(data.open), INNER, MARGIN)});
-    lines.push({t: boxRow('Open Change', fmtPct(data.openChangePct), INNER, MARGIN), cls: data.openChangePct > 0 ? 'up-line' : (data.openChangePct < 0 ? 'down-line' : '')});
-    lines.push('│' + ' '.repeat(INNER) + '│');
-    lines.push(div);
-    const targetsTitle = 'TARGETS';
-    const tpad = INNER - targetsTitle.length;
-    const tleft = Math.floor(tpad/2);
-    const tright = tpad - tleft;
-    lines.push('│' + ' '.repeat(tleft) + targetsTitle + ' '.repeat(tright) + '│');
-    lines.push('│' + ' '.repeat(INNER) + '│');
-    lines.push({t: boxRow('+0.20%', fmtPrice(data.up02), INNER, MARGIN), cls:'up-line'});
-    lines.push({t: boxRow('+0.50%', fmtPrice(data.up05), INNER, MARGIN), cls:'up-line'});
-    lines.push('│' + ' '.repeat(INNER) + '│');
-    lines.push({t: boxRow('-0.20%', fmtPrice(data.down02), INNER, MARGIN), cls:'down-line'});
-    lines.push({t: boxRow('-0.50%', fmtPrice(data.down05), INNER, MARGIN), cls:'down-line'});
-    lines.push(bottom);
-
-    boxEl.innerHTML = '';
-    lines.forEach(l => {
-      const span = document.createElement('span');
-      if (typeof l === 'string'){
-        span.textContent = l;
-      } else {
-        span.textContent = l.t;
-        if (l.cls) span.className = l.cls;
-      }
-      boxEl.appendChild(span);
-      boxEl.appendChild(document.createTextNode('\n'));
     });
-  }
 
-  function marketStateLabel(state){
-    switch(state){
-      case 'REGULAR': return 'market open';
-      case 'PRE': return 'pre-market';
-      case 'POST': case 'POSTPOST': return 'after hours';
-      case 'CLOSED': return 'market closed';
-      default: return state ? state.toLowerCase() : 'unknown';
+    const code = response.getResponseCode();
+    const body = response.getContentText();
+
+    if (code !== 200) {
+      throw new Error("Yahoo Finance HTTP " + code + ": " + body.slice(0, 300));
     }
-  }
 
-  function startCountdown(){
-    clearInterval(countdownTimer);
-    secondsLeft = REFRESH_MS / 1000;
-    updateFetchedText();
-    countdownTimer = setInterval(() => {
-      secondsLeft = Math.max(0, secondsLeft - 1);
-      updateFetchedText();
-    }, 1000);
-  }
+    const json = JSON.parse(body);
+    if (json.chart.error) {
+      throw new Error("Yahoo API error: " + JSON.stringify(json.chart.error));
+    }
 
-  function updateFetchedText(){
-    const local = lastFetchLocal ? lastFetchLocal.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit'}) : '—';
-    fetchedText.textContent = 'fetched ' + local + ' · next in ' + secondsLeft + 's';
-  }
+    const result = json.chart.result && json.chart.result[0];
+    if (!result || !result.meta) {
+      throw new Error("Unexpected Yahoo response shape: " + body.slice(0, 300));
+    }
 
-  async function load(){
-    refreshBtn.disabled = true;
-    try {
-      const result = await fetchQuote();
-      const meta = result.meta;
-      const prevClose = meta.chartPreviousClose || meta.previousClose;
-      let open = todaysOpen(result);
-      if (open === null || open === undefined){
-        open = prevClose;
+    const meta = result.meta;
+
+    // ==============================
+    // PREVIOUS CLOSE
+    // ==============================
+
+    const previousClose = meta.chartPreviousClose || meta.previousClose;
+    if (typeof previousClose !== "number") {
+      throw new Error("Missing previousClose in Yahoo response");
+    }
+
+    // ==============================
+    // TODAY'S OPEN
+    // ==============================
+
+    const timestamps = result.timestamp || [];
+    const opens = (result.indicators && result.indicators.quote &&
+      result.indicators.quote[0] && result.indicators.quote[0].open) || [];
+    const timezone = meta.exchangeTimezoneName || "America/New_York";
+
+    const refTime = meta.regularMarketTime
+      ? new Date(meta.regularMarketTime * 1000)
+      : new Date();
+
+    const todayKey = refTime.toLocaleDateString("en-CA", { timeZone: timezone });
+
+    let todayOpen = null;
+    for (let i = timestamps.length - 1; i >= 0; i--) {
+      const key = new Date(timestamps[i] * 1000).toLocaleDateString("en-CA", { timeZone: timezone });
+      if (key === todayKey && typeof opens[i] === "number") {
+        todayOpen = opens[i];
+        break;
       }
-      const openChangePct = ((open - prevClose) / prevClose) * 100;
-
-      const data = {
-        prevClose: prevClose,
-        open: open,
-        openChangePct: openChangePct,
-        up02: prevClose * 1.002,
-        up05: prevClose * 1.005,
-        down02: prevClose * 0.998,
-        down05: prevClose * 0.995
-      };
-      buildBox(data);
-
-      statusText.textContent = marketStateLabel(meta.marketState);
-      statusDot.classList.toggle('live', meta.marketState === 'REGULAR');
-      errorBox.style.display = 'none';
-      lastFetchLocal = new Date();
-    } catch(e){
-      errorBox.style.display = 'block';
-      errorBox.textContent = 'Could not load a live price right now (network or source blocked). Try Refresh, or check again shortly — this page uses free public data sources with no guaranteed uptime.';
-      statusText.textContent = 'error';
-      statusDot.classList.remove('live');
-    } finally {
-      refreshBtn.disabled = false;
-      startCountdown();
     }
+    if (todayOpen === null || todayOpen === undefined) {
+      todayOpen = previousClose;
+    }
+
+    // ==============================
+    // CURRENT SPX / TARGETS
+    // ==============================
+
+    const currentPrice = meta.regularMarketPrice;
+    const openChangePct = ((todayOpen - previousClose) / previousClose) * 100;
+
+    const targets = {
+      pcUp02: previousClose * 1.002,
+      pcDown02: previousClose * 0.998,
+      pcUp05: previousClose * 1.005,
+      pcDown05: previousClose * 0.995,
+      openUp05: todayOpen * 1.005,
+      openDown05: todayOpen * 0.995
+    };
+
+    // ==============================
+    // BOX BUILDING HELPERS
+    // ==============================
+
+    function fmtPrice(n) {
+      return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtPct(n) {
+      const sign = n > 0 ? "+" : (n < 0 ? "" : "");
+      return sign + n.toFixed(2) + "%";
+    }
+    function row(label, value) {
+      const left = " " + label;
+      const gapLen = Math.max(1, INNER - left.length - value.length);
+      const text = (left + " ".repeat(gapLen) + value).padEnd(INNER, " ").slice(0, INNER);
+      return "│" + text + "│";
+    }
+    function centered(text) {
+      const pad = INNER - text.length;
+      const l = Math.floor(pad / 2);
+      const r = pad - l;
+      return "│" + " ".repeat(Math.max(l, 0)) + text + " ".repeat(Math.max(r, 0)) + "│";
+    }
+    function blank() {
+      return "│" + " ".repeat(INNER) + "│";
+    }
+
+    const top = "┌" + "─".repeat(INNER) + "┐";
+    const div = "├" + "─".repeat(INNER) + "┤";
+    const bottom = "└" + "─".repeat(INNER) + "┘";
+
+    const lastUpdated = Utilities.formatDate(new Date(), timezone, "h:mm a");
+
+    const lines = [
+      top,
+      centered("SPX DAILY TARGETS"),
+      div,
+      blank(),
+      row("Previous Close", fmtPrice(previousClose)),
+      row("Today's Open", fmtPrice(todayOpen)),
+      row("Open Change", fmtPct(openChangePct)),
+      blank(),
+      div,
+      centered("TARGETS"),
+      blank(),
+      row("+0.20% Previous Close", fmtPrice(targets.pcUp02)),
+      row("-0.20% Previous Close", fmtPrice(targets.pcDown02)),
+      blank(),
+      row("+0.50% Previous Close", fmtPrice(targets.pcUp05)),
+      row("-0.50% Previous Close", fmtPrice(targets.pcDown05)),
+      blank(),
+      row("+0.50% Today's Open", fmtPrice(targets.openUp05)),
+      row("-0.50% Today's Open", fmtPrice(targets.openDown05)),
+      blank(),
+      div,
+      blank(),
+      row("Current SPX", fmtPrice(currentPrice)),
+      row("Last Updated", lastUpdated),
+      bottom
+    ];
+
+    // ==============================
+    // WRITE TO SHEET
+    // ==============================
+
+    sheet.clear();
+
+    const rangeValues = lines.map(l => [l]);
+    sheet.getRange(1, 1, rangeValues.length, 1).setValues(rangeValues);
+
+    sheet.getRange(1, 1, rangeValues.length, 1)
+      .setFontFamily("Courier New")
+      .setFontSize(11)
+      .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+
+    sheet.setColumnWidth(1, 420);
+
+  } catch (err) {
+
+    sheet.clear();
+    sheet.getRange("A1").setValue("SPX update failed").setFontWeight("bold").setFontColor("#EA3943");
+    sheet.getRange("A2").setValue(String(err));
+    sheet.getRange("A3").setValue("Last attempt: " + new Date());
+    throw err;
+
   }
-
-  refreshBtn.addEventListener('click', load);
-  load();
-  setInterval(load, REFRESH_MS);
-})();
-</script>
-
-</body>
-</html>
+}
