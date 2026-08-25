@@ -29,9 +29,10 @@
   }
   .up-line{color:var(--up);}
   .down-line{color:var(--down);}
+  .amber-line{color:var(--amber);}
   .controls{
-    display:flex;align-items:center;gap:14px;
-    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 14px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);max-width:460px;
   }
   .refresh-btn{
     font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--text);
@@ -43,6 +44,12 @@
   .status{display:flex;align-items:center;gap:6px;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
   .dot.live{background:var(--up);}
+  .dot.warn{background:var(--amber);}
+  .warn-box{
+    max-width:460px;padding:12px 14px;background:rgba(240,185,11,0.08);
+    border:1px solid rgba(240,185,11,0.3);border-radius:8px;font-size:12.5px;
+    color:#F5D98B;line-height:1.5;display:none;font-family:'Inter',sans-serif;
+  }
   .error-box{
     max-width:460px;padding:12px 14px;background:rgba(234,57,67,0.08);
     border:1px solid rgba(234,57,67,0.3);border-radius:8px;font-size:12.5px;
@@ -55,9 +62,11 @@
 
 <div class="wrap">
   <pre id="box">Loading…</pre>
+  <div class="warn-box" id="warnBox"></div>
   <div class="error-box" id="errorBox"></div>
   <div class="controls">
     <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">loading</span></span>
+    <span id="sourceText"></span>
     <span id="fetchedText">not yet loaded</span>
     <button class="refresh-btn" id="refreshBtn">Refresh</button>
   </div>
@@ -66,21 +75,23 @@
 <script>
 (function(){
   const boxEl = document.getElementById('box');
+  const warnBox = document.getElementById('warnBox');
   const errorBox = document.getElementById('errorBox');
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
+  const sourceText = document.getElementById('sourceText');
   const fetchedText = document.getElementById('fetchedText');
   const refreshBtn = document.getElementById('refreshBtn');
 
-  // ==============================
-  // PASTE YOUR FREE TWELVE DATA KEY HERE
-  // ==============================
-  const API_KEY = '124ba3023b3c487fbdf52da6e933368d';
-  const SYMBOL = 'SPX';
-  const QUOTE_URL = 'https://api.twelvedata.com/quote?symbol=' + SYMBOL + '&apikey=' + API_KEY;
-
+  const SYMBOL = '%5EGSPC'; // ^GSPC
   const INNER = 40;
-  let lastFetchLocal = null;
+  const STALE_MS = 15 * 60 * 1000; // flag if quote is older than 15 min
+
+  function baseUrl(){
+    // cache-busting param so no CDN/edge cache serves an old response
+    return 'https://query1.finance.yahoo.com/v8/finance/chart/' + SYMBOL +
+      '?interval=1d&range=5d&_cb=' + Date.now();
+  }
 
   function fmtPrice(n){
     if (n === null || n === undefined || isNaN(n)) return '—';
@@ -93,16 +104,45 @@
   }
 
   async function fetchQuote(){
-    const res = await fetch(QUOTE_URL, {cache:'no-store'});
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.status === 'error' || data.code) {
-      throw new Error(data.message || 'Twelve Data error');
+    // 1) Try direct — no proxy, no cache.
+    try {
+      const res = await fetch(baseUrl(), {cache:'no-store'});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const result = data && data.chart && data.chart.result && data.chart.result[0];
+      if (!result || !result.meta) throw new Error('unexpected payload');
+      return {result, source: 'direct'};
+    } catch(directErr){
+      // 2) Fallback to a cache-busted proxy — flagged clearly if used.
+      try {
+        const proxied = 'https://corsproxy.io/?url=' + encodeURIComponent(baseUrl()) + '&_cb2=' + Date.now();
+        const res2 = await fetch(proxied, {cache:'no-store'});
+        if (!res2.ok) throw new Error('HTTP ' + res2.status);
+        const data2 = await res2.json();
+        const result2 = data2 && data2.chart && data2.chart.result && data2.chart.result[0];
+        if (!result2 || !result2.meta) throw new Error('unexpected payload');
+        return {result: result2, source: 'proxy'};
+      } catch(proxyErr){
+        throw new Error('Direct fetch failed (' + directErr.message + '); proxy fallback also failed (' + proxyErr.message + ')');
+      }
     }
-    if (typeof data.previous_close === 'undefined') {
-      throw new Error('Unexpected response shape');
+  }
+
+  function todaysOpen(result){
+    const meta = result.meta;
+    const tz = meta.exchangeTimezoneName || 'America/New_York';
+    const timestamps = result.timestamp || [];
+    const opens = (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].open) || [];
+    if (!timestamps.length) return null;
+
+    const todayKey = new Date(meta.regularMarketTime * 1000).toLocaleDateString('en-CA', {timeZone: tz});
+    for (let i = timestamps.length - 1; i >= 0; i--){
+      const key = new Date(timestamps[i] * 1000).toLocaleDateString('en-CA', {timeZone: tz});
+      if (key === todayKey && typeof opens[i] === 'number'){
+        return opens[i];
+      }
     }
-    return data;
+    return null;
   }
 
   function row(label, value){
@@ -167,21 +207,34 @@
     });
   }
 
+  function marketStateLabel(state){
+    switch(state){
+      case 'REGULAR': return 'market open';
+      case 'PRE': return 'pre-market';
+      case 'POST': case 'POSTPOST': return 'after hours';
+      case 'CLOSED': return 'market closed';
+      default: return state ? state.toLowerCase() : 'unknown';
+    }
+  }
+
   async function load(){
     refreshBtn.disabled = true;
+    warnBox.style.display = 'none';
     try {
-      if (API_KEY === '67e859d4f2524bc794d48adb480deeea'){
-        throw new Error('Add your free Twelve Data API key in the code (look for API_KEY near the top of the script) before this will work.');
-      }
-      const q = await fetchQuote();
-
-      const prevClose = parseFloat(q.previous_close);
-      const open = parseFloat(q.open);
-      const current = parseFloat(q.close);
+      const {result, source} = await fetchQuote();
+      const meta = result.meta;
+      const tz = meta.exchangeTimezoneName || 'America/New_York';
+      const prevClose = meta.chartPreviousClose || meta.previousClose;
+      let open = todaysOpen(result);
+      if (open === null || open === undefined) open = prevClose;
       const openChangePct = ((open - prevClose) / prevClose) * 100;
+      const quoteTime = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : null;
+      const lastUpdated = quoteTime
+        ? quoteTime.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: tz})
+        : '—';
 
       const data = {
-        prevClose, open, current,
+        prevClose, open, current: meta.regularMarketPrice,
         openChangePct,
         pcUp02: prevClose * 1.002,
         pcDown02: prevClose * 0.998,
@@ -189,28 +242,42 @@
         pcDown05: prevClose * 0.995,
         openUp05: open * 1.005,
         openDown05: open * 0.995,
-        lastUpdated: q.datetime ? q.datetime.split(' ')[1] || q.datetime : new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'})
+        lastUpdated
       };
       buildBox(data);
 
-      const isOpen = q.is_market_open === true || q.is_market_open === 'true';
-      statusText.textContent = isOpen ? 'market open' : 'market closed';
-      statusDot.classList.toggle('live', isOpen);
+      // Staleness check — independent of which path we used.
+      const ageMs = quoteTime ? (Date.now() - quoteTime.getTime()) : null;
+      const isStale = ageMs !== null && ageMs > STALE_MS && meta.marketState === 'REGULAR';
+
+      if (source === 'proxy'){
+        warnBox.style.display = 'block';
+        warnBox.textContent = 'Direct fetch was blocked, so this came through a fallback proxy — double-check this number against another source before trusting it.';
+      } else if (isStale){
+        warnBox.style.display = 'block';
+        warnBox.textContent = 'Quote timestamp is over 15 minutes old during market hours — data may be delayed or stuck. Try Refresh.';
+      }
+
+      statusText.textContent = marketStateLabel(meta.marketState);
+      statusDot.classList.toggle('live', meta.marketState === 'REGULAR' && !isStale && source === 'direct');
+      statusDot.classList.toggle('warn', source === 'proxy' || isStale);
+      sourceText.textContent = 'source: ' + source;
       errorBox.style.display = 'none';
-      lastFetchLocal = new Date();
-      fetchedText.textContent = 'fetched ' + lastFetchLocal.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit'});
+      fetchedText.textContent = 'fetched ' + new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit'});
     } catch(e){
       errorBox.style.display = 'block';
-      errorBox.textContent = e.message || 'Could not load a live price right now. Try Refresh.';
+      errorBox.textContent = e.message || 'Could not load a live price right now.';
       statusText.textContent = 'error';
       statusDot.classList.remove('live');
+      statusDot.classList.remove('warn');
+      sourceText.textContent = '';
     } finally {
       refreshBtn.disabled = false;
     }
   }
 
   refreshBtn.addEventListener('click', load);
-  load(); // fetch once on page load only — no auto-refresh loop
+  load(); // fetch once on load; no auto-refresh loop
 })();
 </script>
 
