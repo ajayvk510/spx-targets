@@ -6,75 +6,142 @@
 <title>SPX Daily Targets</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0B0E11;
-    --text:#E8EAED;
-    --muted:#6B7280;
-    --up:#16C784;
-    --down:#EA3943;
-    --amber:#F0B90B;
+    --navy:#1a2744;
+    --green:#1a7a3c;
+    --green-bg:#e9f7ee;
+    --green-bg2:#dcf1e4;
+    --red:#a11d1d;
+    --red-bg:#fbeaea;
+    --red-bg2:#f7dbdb;
+    --gray-bg:#f4f5f7;
+    --gray-bg2:#eceef1;
+    --border:#dfe2e7;
+    --text:#1c1f26;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{height:100%;background:var(--bg);color:var(--text);}
+  html,body{background:#ffffff;color:var(--text);}
   body{
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    min-height:100vh;padding:24px;font-family:'Inter',sans-serif;
+    display:flex;justify-content:center;padding:28px 16px 60px;
+    font-family:'Inter',sans-serif;
   }
-  .wrap{display:flex;flex-direction:column;align-items:center;gap:16px;}
-  pre#box{
-    font-family:'IBM Plex Mono',monospace;font-size:15px;line-height:1.55;
-    white-space:pre;color:var(--text);
+  .card{width:100%;max-width:640px;}
+
+  h1{
+    text-align:center;color:var(--navy);font-weight:800;font-size:30px;
+    letter-spacing:0.3px;
   }
-  .up-line{color:var(--up);}
-  .down-line{color:var(--down);}
+  .title-rule{height:3px;background:var(--navy);margin:10px 0 22px 0;border-radius:2px;}
+
+  table{width:100%;border-collapse:collapse;}
+
+  .summary{margin-bottom:26px;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .summary td{padding:14px 16px;font-size:16px;border-bottom:1px solid var(--border);}
+  .summary tr:last-child td{border-bottom:none;}
+  .summary tr:nth-child(odd){background:var(--gray-bg);}
+  .summary tr:nth-child(even){background:#ffffff;}
+  .summary .label{font-weight:700;width:44%;}
+  .summary .value{text-align:center;font-weight:700;font-size:18px;}
+  .value.up{color:var(--green);}
+  .value.down{color:var(--red);}
+
+  .targets{border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:26px;}
+  .targets th{
+    padding:12px 8px;font-size:14px;font-weight:700;color:#fff;text-align:center;
+  }
+  .th-calls{background:var(--green);}
+  .th-ref{background:var(--navy);}
+  .th-puts{background:var(--red);}
+  .targets .sub th{
+    font-size:12.5px;font-weight:600;color:#fff;padding:8px;
+  }
+  .sub .sub-calls{background:#155c2e;}
+  .sub .sub-ref{background:var(--navy);}
+  .sub .sub-puts{background:#7d1616;}
+
+  .targets td{
+    padding:14px 8px;text-align:center;font-size:15px;border-bottom:1px solid var(--border);
+  }
+  .targets tr:last-child td{border-bottom:none;}
+  .row-pc td.tcell, .row-pc td.lcell{background:var(--green-bg);}
+  .row-pc td.pcell, .row-pc td.pvcell{background:var(--red-bg);}
+  .row-open td.tcell, .row-open td.lcell{background:var(--green-bg2);}
+  .row-open td.pcell, .row-open td.pvcell{background:var(--red-bg2);}
+  .ref-cell{font-size:13px;color:var(--navy);font-weight:500;line-height:1.3;background:#f8f9fb;}
+  .tcell{color:var(--green);font-weight:700;}
+  .lcell{font-weight:700;}
+  .pcell{color:var(--red);font-weight:700;}
+  .pvcell{font-weight:700;}
+
+  .footer{text-align:center;}
+  .footer h2{
+    color:var(--navy);font-weight:800;font-size:18px;letter-spacing:0.5px;
+  }
+  .footer-rule{height:2px;background:var(--navy);margin:8px 0 18px 0;border-radius:2px;}
+  .last-updated-label{color:var(--navy);font-weight:600;font-size:13px;margin-bottom:4px;}
+  .current-price{color:var(--navy);font-weight:800;font-size:34px;}
+  .current-time{color:#5a5f6b;font-size:14px;margin-top:2px;}
+
   .controls{
     display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 14px;
-    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);max-width:460px;
+    font-size:12px;color:#6b7280;margin-top:22px;
   }
   .refresh-btn{
-    font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--text);
-    background:#1E242B;border:none;border-radius:7px;padding:7px 14px;cursor:pointer;
+    font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#fff;
+    background:var(--navy);border:none;border-radius:7px;padding:8px 16px;cursor:pointer;
   }
-  .refresh-btn:hover{background:#2A323C;}
   .refresh-btn:disabled{opacity:0.5;cursor:default;}
-  .refresh-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
   .status{display:flex;align-items:center;gap:6px;}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
-  .dot.live{background:var(--up);}
-  .dot.warn{background:var(--amber);}
+  .dot{width:7px;height:7px;border-radius:50%;background:#9ca3af;}
+  .dot.live{background:var(--green);}
+  .dot.warn{background:#d97706;}
   .warn-box{
-    max-width:460px;padding:12px 14px;background:rgba(240,185,11,0.08);
-    border:1px solid rgba(240,185,11,0.3);border-radius:8px;font-size:12.5px;
-    color:#F5D98B;line-height:1.5;display:none;font-family:'Inter',sans-serif;
+    max-width:600px;margin:0 auto 18px auto;padding:12px 14px;background:#fff8e6;
+    border:1px solid #f0c86b;border-radius:8px;font-size:12.5px;color:#8a5a00;line-height:1.5;
+    display:none;
   }
   .error-box{
-    max-width:460px;padding:12px 14px;background:rgba(234,57,67,0.08);
-    border:1px solid rgba(234,57,67,0.3);border-radius:8px;font-size:12.5px;
-    color:#F5A5A9;line-height:1.5;display:none;font-family:'Inter',sans-serif;
+    max-width:600px;margin:0 auto 18px auto;padding:12px 14px;background:var(--red-bg);
+    border:1px solid #e6b3b3;border-radius:8px;font-size:12.5px;color:var(--red);line-height:1.5;
+    display:none;
   }
-  .note{max-width:460px;font-size:11.5px;color:var(--muted);text-align:center;font-family:'Inter',sans-serif;}
-  @media (max-width:480px){pre#box{font-size:11.5px;}}
+  .loading-text{text-align:center;color:#6b7280;font-size:14px;padding:30px 0;}
+
+  @media (max-width:480px){
+    h1{font-size:24px;}
+    .summary td{padding:11px 12px;font-size:14px;}
+    .summary .value{font-size:15px;}
+    .targets td, .targets th{padding:9px 4px;font-size:12.5px;}
+    .targets .sub th{font-size:10.5px;}
+    .ref-cell{font-size:10.5px;}
+    .current-price{font-size:26px;}
+  }
 </style>
 </head>
 <body>
+<div class="card">
+  <h1>SPX DAILY TARGETS</h1>
+  <div class="title-rule"></div>
 
-<div class="wrap">
-  <pre id="box">Loading…</pre>
   <div class="warn-box" id="warnBox"></div>
   <div class="error-box" id="errorBox"></div>
+
+  <div id="content">
+    <div class="loading-text">Loading…</div>
+  </div>
+
   <div class="controls">
     <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">loading</span></span>
     <span id="fetchedText">not yet loaded</span>
     <button class="refresh-btn" id="refreshBtn">Refresh</button>
   </div>
-  <div class="note">Previous close: Google Finance &middot; Open/current: Yahoo Finance</div>
 </div>
 
 <script>
 (function(){
-  const boxEl = document.getElementById('box');
+  const contentEl = document.getElementById('content');
   const warnBox = document.getElementById('warnBox');
   const errorBox = document.getElementById('errorBox');
   const statusDot = document.getElementById('statusDot');
@@ -83,9 +150,11 @@
   const refreshBtn = document.getElementById('refreshBtn');
 
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRawT3EwXWDeuu0cj40cqoEG2Mm18emA_68-v5zG-EdYqsxzhqmZXwsnzpkGEn_DMkjGMhvs_cycjCx/pub?gid=0&single=true&output=csv';
-
   const YAHOO_SYMBOL = '%5EGSPC'; // ^GSPC
-  const INNER = 40;
+
+  // Target percentages to show, per reference point
+  const PC_PCTS = [0.20, 0.50, 0.80, 1.00];   // from Previous Close
+  const OPEN_PCTS = [0.50, 1.00];             // from Today's Open
 
   function yahooUrl(){
     return 'https://query1.finance.yahoo.com/v8/finance/chart/' + YAHOO_SYMBOL +
@@ -103,7 +172,7 @@
   }
 
   // ==============================
-  // SOURCE 1: Previous close — pulls ONLY row 2, column A (A2) from the CSV
+  // SOURCE 1: Previous close — row 2, column A (A2) from the CSV
   // ==============================
   async function fetchPrevCloseFromSheet(){
     const url = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_cb=' + Date.now();
@@ -160,71 +229,6 @@
     return null;
   }
 
-  // ==============================
-  // BOX RENDERING
-  // ==============================
-  function row_(label, value){
-    const left = ' ' + label;
-    const gapLen = Math.max(1, INNER - left.length - value.length);
-    const text = (left + ' '.repeat(gapLen) + value).padEnd(INNER, ' ').slice(0, INNER);
-    return '│' + text + '│';
-  }
-  function centered(text){
-    const pad = INNER - text.length;
-    const l = Math.floor(pad/2);
-    const r = pad - l;
-    return '│' + ' '.repeat(Math.max(l,0)) + text + ' '.repeat(Math.max(r,0)) + '│';
-  }
-  function blank(){
-    return '│' + ' '.repeat(INNER) + '│';
-  }
-
-  function buildBox(d){
-    const top    = '┌' + '─'.repeat(INNER) + '┐';
-    const div    = '├' + '─'.repeat(INNER) + '┤';
-    const bottom = '└' + '─'.repeat(INNER) + '┘';
-
-    const lines = [];
-    lines.push(top);
-    lines.push(centered('SPX DAILY TARGETS'));
-    lines.push(div);
-    lines.push(blank());
-    lines.push({t: row_('Previous Close', fmtPrice(d.prevClose))});
-    lines.push({t: row_("Today's Open", fmtPrice(d.open))});
-    lines.push({t: row_('Open Change', fmtPct(d.openChangePct)), cls: d.openChangePct > 0 ? 'up-line' : (d.openChangePct < 0 ? 'down-line' : '')});
-    lines.push(blank());
-    lines.push(div);
-    lines.push(centered('TARGETS'));
-    lines.push(blank());
-    lines.push({t: row_('+0.20% Previous Close', fmtPrice(d.pcUp02)), cls:'up-line'});
-    lines.push({t: row_('-0.20% Previous Close', fmtPrice(d.pcDown02)), cls:'down-line'});
-    lines.push(blank());
-    lines.push({t: row_('+0.50% Previous Close', fmtPrice(d.pcUp05)), cls:'up-line'});
-    lines.push({t: row_('-0.50% Previous Close', fmtPrice(d.pcDown05)), cls:'down-line'});
-    lines.push(blank());
-    lines.push({t: row_("+0.50% Today's Open", fmtPrice(d.openUp05)), cls:'up-line'});
-    lines.push({t: row_("-0.50% Today's Open", fmtPrice(d.openDown05)), cls:'down-line'});
-    lines.push(blank());
-    lines.push(div);
-    lines.push(blank());
-    lines.push({t: row_('Current SPX', fmtPrice(d.current))});
-    lines.push({t: row_('Last Updated', d.lastUpdated)});
-    lines.push(bottom);
-
-    boxEl.innerHTML = '';
-    lines.forEach(l => {
-      const span = document.createElement('span');
-      if (typeof l === 'string'){
-        span.textContent = l;
-      } else {
-        span.textContent = l.t;
-        if (l.cls) span.className = l.cls;
-      }
-      boxEl.appendChild(span);
-      boxEl.appendChild(document.createTextNode('\n'));
-    });
-  }
-
   function marketStateLabel(state){
     switch(state){
       case 'REGULAR': return 'market open';
@@ -233,6 +237,100 @@
       case 'CLOSED': return 'market closed';
       default: return state ? state.toLowerCase() : 'unknown';
     }
+  }
+
+  // ==============================
+  // RENDER
+  // ==============================
+  function el(tag, cls, text){
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function buildSummary(prevClose, open, openChangePct){
+    const table = el('table', 'summary');
+    const rows = [
+      ['Previous Close', fmtPrice(prevClose), null],
+      ["Today's Open", fmtPrice(open), null],
+      ['Open Change', fmtPct(openChangePct), openChangePct > 0 ? 'up' : (openChangePct < 0 ? 'down' : null)]
+    ];
+    rows.forEach(([label, value, cls]) => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'label', label));
+      const valTd = el('td', 'value' + (cls ? ' ' + cls : ''), value);
+      tr.appendChild(valTd);
+      table.appendChild(tr);
+    });
+    return table;
+  }
+
+  function buildTargets(prevClose, open){
+    const table = el('table', 'targets');
+
+    const headRow = el('tr');
+    const thCalls = el('th', 'th-calls', 'CALLS (Upside Targets)');
+    thCalls.colSpan = 2;
+    const thRef = el('th', 'th-ref', 'REFERENCE');
+    const thPuts = el('th', 'th-puts', 'PUTS (Downside Targets)');
+    thPuts.colSpan = 2;
+    headRow.appendChild(thCalls);
+    headRow.appendChild(thRef);
+    headRow.appendChild(thPuts);
+    table.appendChild(headRow);
+
+    const subRow = el('tr', 'sub');
+    ['Target','Level'].forEach(t => subRow.appendChild(el('th', 'sub-calls', t)));
+    subRow.appendChild(el('th', 'sub-ref', ''));
+    ['Target','Level'].forEach(t => subRow.appendChild(el('th', 'sub-puts', t)));
+    table.appendChild(subRow);
+
+    function addRow(pct, refLabel, refBase, rowCls){
+      const upVal = refBase * (1 + pct/100);
+      const downVal = refBase * (1 - pct/100);
+      const tr = el('tr', rowCls);
+      tr.appendChild(el('td', 'tcell', '+' + pct.toFixed(2) + '%'));
+      tr.appendChild(el('td', 'lcell', fmtPrice(upVal)));
+      tr.appendChild(el('td', 'ref-cell', 'from\n' + refLabel));
+      tr.appendChild(el('td', 'pcell', '-' + pct.toFixed(2) + '%'));
+      tr.appendChild(el('td', 'pvcell', fmtPrice(downVal)));
+      table.appendChild(tr);
+    }
+
+    PC_PCTS.forEach(pct => addRow(pct, 'Previous Close', prevClose, 'row-pc'));
+    OPEN_PCTS.forEach(pct => addRow(pct, "Today's Open", open, 'row-open'));
+
+    // Fix multi-line ref cell rendering (textContent collapses \n)
+    table.querySelectorAll('.ref-cell').forEach(td => {
+      const parts = td.textContent.split('\n');
+      td.textContent = '';
+      const l1 = document.createElement('div');
+      l1.textContent = parts[0];
+      const l2 = document.createElement('div');
+      l2.textContent = parts[1];
+      td.appendChild(l1);
+      td.appendChild(l2);
+    });
+
+    return table;
+  }
+
+  function buildFooter(current, lastUpdated){
+    const wrap = el('div', 'footer');
+    wrap.appendChild(el('h2', null, 'CURRENT SPX'));
+    wrap.appendChild(el('div', 'footer-rule'));
+    wrap.appendChild(el('div', 'last-updated-label', 'Last Updated'));
+    wrap.appendChild(el('div', 'current-price', fmtPrice(current)));
+    wrap.appendChild(el('div', 'current-time', lastUpdated));
+    return wrap;
+  }
+
+  function render(d){
+    contentEl.innerHTML = '';
+    contentEl.appendChild(buildSummary(d.prevClose, d.open, d.openChangePct));
+    contentEl.appendChild(buildTargets(d.prevClose, d.open));
+    contentEl.appendChild(buildFooter(d.current, d.lastUpdated));
   }
 
   async function load(){
@@ -275,17 +373,7 @@
 
     const openChangePct = (prevClose && open) ? ((open - prevClose) / prevClose) * 100 : null;
 
-    const data = {
-      prevClose, open, current, openChangePct,
-      pcUp02: prevClose ? prevClose * 1.002 : null,
-      pcDown02: prevClose ? prevClose * 0.998 : null,
-      pcUp05: prevClose ? prevClose * 1.005 : null,
-      pcDown05: prevClose ? prevClose * 0.995 : null,
-      openUp05: open ? open * 1.005 : null,
-      openDown05: open ? open * 0.995 : null,
-      lastUpdated
-    };
-    buildBox(data);
+    render({prevClose, open, current, openChangePct, lastUpdated});
 
     const problems = [];
     if (prevCloseResult.status === 'rejected') problems.push('Previous close (Google Sheet) failed: ' + prevCloseResult.reason.message);
