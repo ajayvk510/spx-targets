@@ -17,7 +17,6 @@
     --red-bg:#fbeaea;
     --red-bg2:#f7dbdb;
     --gray-bg:#f4f5f7;
-    --gray-bg2:#eceef1;
     --border:#dfe2e7;
     --text:#1c1f26;
   }
@@ -37,7 +36,7 @@
 
   table{width:100%;border-collapse:collapse;}
 
-  .summary{margin-bottom:26px;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .summary{margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
   .summary td{padding:14px 16px;font-size:16px;border-bottom:1px solid var(--border);}
   .summary tr:last-child td{border-bottom:none;}
   .summary tr:nth-child(odd){background:var(--gray-bg);}
@@ -47,15 +46,25 @@
   .value.up{color:var(--green);}
   .value.down{color:var(--red);}
 
-  .targets{border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:26px;}
+  .bias-banner{
+    text-align:center;font-weight:700;font-size:13.5px;letter-spacing:0.3px;
+    padding:10px 14px;border-radius:6px;margin-bottom:20px;
+  }
+  .bias-banner.calls{background:var(--green-bg);color:var(--green);border:1px solid #b7e2c4;}
+  .bias-banner.puts{background:var(--red-bg);color:var(--red);border:1px solid #e6b3b3;}
+  .bias-banner.neutral{background:var(--gray-bg);color:#555;border:1px solid var(--border);}
+
+  .targets{border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:26px;transition:opacity 0.2s ease, filter 0.2s ease;}
   .targets th{
     padding:12px 8px;font-size:14px;font-weight:700;color:#fff;text-align:center;
+    transition:opacity 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
   }
   .th-calls{background:var(--green);}
   .th-ref{background:var(--navy);}
   .th-puts{background:var(--red);}
   .targets .sub th{
     font-size:12.5px;font-weight:600;color:#fff;padding:8px;
+    transition:opacity 0.2s ease, filter 0.2s ease;
   }
   .sub .sub-calls{background:#155c2e;}
   .sub .sub-ref{background:var(--navy);}
@@ -63,6 +72,7 @@
 
   .targets td{
     padding:14px 8px;text-align:center;font-size:15px;border-bottom:1px solid var(--border);
+    transition:opacity 0.2s ease, filter 0.2s ease;
   }
   .targets tr:last-child td{border-bottom:none;}
   .row-pc td.tcell, .row-pc td.lcell{background:var(--green-bg);}
@@ -74,6 +84,27 @@
   .lcell{font-weight:700;}
   .pcell{color:var(--red);font-weight:700;}
   .pvcell{font-weight:700;}
+
+  /* Bias styling: dim the unfavored side, emphasize the favored side */
+  .targets.calls-bias .th-puts,
+  .targets.calls-bias .sub-puts,
+  .targets.calls-bias td.pcell,
+  .targets.calls-bias td.pvcell{
+    opacity:0.35;filter:grayscale(55%);
+  }
+  .targets.calls-bias .th-calls{box-shadow:inset 0 0 0 2px #0d4d24;}
+  .targets.calls-bias td.tcell,
+  .targets.calls-bias td.lcell{font-weight:800;}
+
+  .targets.puts-bias .th-calls,
+  .targets.puts-bias .sub-calls,
+  .targets.puts-bias td.tcell,
+  .targets.puts-bias td.lcell{
+    opacity:0.35;filter:grayscale(55%);
+  }
+  .targets.puts-bias .th-puts{box-shadow:inset 0 0 0 2px #5c0f0f;}
+  .targets.puts-bias td.pcell,
+  .targets.puts-bias td.pvcell{font-weight:800;}
 
   .footer{text-align:center;}
   .footer h2{
@@ -96,18 +127,13 @@
   .status{display:flex;align-items:center;gap:6px;}
   .dot{width:7px;height:7px;border-radius:50%;background:#9ca3af;}
   .dot.live{background:var(--green);}
-  .dot.warn{background:#d97706;}
-  .warn-box{
-    max-width:600px;margin:0 auto 18px auto;padding:12px 14px;background:#fff8e6;
-    border:1px solid #f0c86b;border-radius:8px;font-size:12.5px;color:#8a5a00;line-height:1.5;
-    display:none;
-  }
   .error-box{
     max-width:600px;margin:0 auto 18px auto;padding:12px 14px;background:var(--red-bg);
     border:1px solid #e6b3b3;border-radius:8px;font-size:12.5px;color:var(--red);line-height:1.5;
     display:none;
   }
   .loading-text{text-align:center;color:#6b7280;font-size:14px;padding:30px 0;}
+  .source-note{text-align:center;font-size:11.5px;color:#9ca3af;margin-top:6px;}
 
   @media (max-width:480px){
     h1{font-size:24px;}
@@ -125,7 +151,6 @@
   <h1>SPX DAILY TARGETS</h1>
   <div class="title-rule"></div>
 
-  <div class="warn-box" id="warnBox"></div>
   <div class="error-box" id="errorBox"></div>
 
   <div id="content">
@@ -137,12 +162,12 @@
     <span id="fetchedText">not yet loaded</span>
     <button class="refresh-btn" id="refreshBtn">Refresh</button>
   </div>
+  <div class="source-note">All data via Google Finance (typically 15–20 min delayed)</div>
 </div>
 
 <script>
 (function(){
   const contentEl = document.getElementById('content');
-  const warnBox = document.getElementById('warnBox');
   const errorBox = document.getElementById('errorBox');
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
@@ -150,16 +175,12 @@
   const refreshBtn = document.getElementById('refreshBtn');
 
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRawT3EwXWDeuu0cj40cqoEG2Mm18emA_68-v5zG-EdYqsxzhqmZXwsnzpkGEn_DMkjGMhvs_cycjCx/pub?gid=0&single=true&output=csv';
-  const YAHOO_SYMBOL = '%5EGSPC'; // ^GSPC
 
-  // Target percentages to show, per reference point
   const PC_PCTS = [0.20, 0.50, 0.80, 1.00];   // from Previous Close
   const OPEN_PCTS = [0.50, 1.00];             // from Today's Open
 
-  function yahooUrl(){
-    return 'https://query1.finance.yahoo.com/v8/finance/chart/' + YAHOO_SYMBOL +
-      '?interval=1d&range=5d&_cb=' + Date.now();
-  }
+  // Below this % change, treat the open as flat/neutral rather than biased.
+  const NEUTRAL_THRESHOLD_PCT = 0.02;
 
   function fmtPrice(n){
     if (n === null || n === undefined || isNaN(n)) return '—';
@@ -171,77 +192,26 @@
     return sign + n.toFixed(2) + '%';
   }
 
-  // ==============================
-  // SOURCE 1: Previous close — row 2, column A (A2) from the CSV
-  // ==============================
-  async function fetchPrevCloseFromSheet(){
+  async function fetchFromSheet(){
     const url = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_cb=' + Date.now();
     const res = await fetch(url, {cache:'no-store'});
     if (!res.ok) throw new Error('Sheet CSV HTTP ' + res.status);
     const text = await res.text();
     const lines = text.trim().split('\n').map(l => l.replace(/\r$/, ''));
-    if (lines.length < 2) throw new Error('CSV has no row 2 (A2) to read');
-    const a2raw = lines[1].split(',')[0].trim().replace(/^"|"$/g, '');
-    const prevClose = parseFloat(a2raw);
-    if (isNaN(prevClose)) throw new Error('A2 is not a number: "' + a2raw + '"');
-    return prevClose;
+    if (lines.length < 2) throw new Error('CSV has no row 2 to read');
+    const cols = lines[1].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+
+    const prevClose = parseFloat(cols[0]);
+    const open = parseFloat(cols[1]);
+    const current = parseFloat(cols[2]);
+
+    if (isNaN(prevClose)) throw new Error('A2 (previous close) is not a number: "' + cols[0] + '"');
+    if (isNaN(open)) throw new Error('B2 (today\'s open) is not a number: "' + (cols[1] || '') + '" — did you add the today_open formula?');
+    if (isNaN(current)) throw new Error('C2 (current) is not a number: "' + (cols[2] || '') + '" — did you add the current formula?');
+
+    return { prevClose, open, current };
   }
 
-  // ==============================
-  // SOURCE 2: Today's open + current price, from Yahoo (direct, proxy fallback)
-  // ==============================
-  async function fetchYahoo(){
-    try {
-      const res = await fetch(yahooUrl(), {cache:'no-store'});
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      const result = data && data.chart && data.chart.result && data.chart.result[0];
-      if (!result || !result.meta) throw new Error('unexpected payload');
-      return {result, source: 'direct'};
-    } catch(directErr){
-      try {
-        const proxied = 'https://corsproxy.io/?url=' + encodeURIComponent(yahooUrl());
-        const res2 = await fetch(proxied, {cache:'no-store'});
-        if (!res2.ok) throw new Error('HTTP ' + res2.status);
-        const data2 = await res2.json();
-        const result2 = data2 && data2.chart && data2.chart.result && data2.chart.result[0];
-        if (!result2 || !result2.meta) throw new Error('unexpected payload');
-        return {result: result2, source: 'proxy'};
-      } catch(proxyErr){
-        throw new Error('Yahoo direct failed (' + directErr.message + '); proxy fallback also failed (' + proxyErr.message + ')');
-      }
-    }
-  }
-
-  function todaysOpen(result){
-    const meta = result.meta;
-    const tz = meta.exchangeTimezoneName || 'America/New_York';
-    const timestamps = result.timestamp || [];
-    const opens = (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].open) || [];
-    if (!timestamps.length) return null;
-    const todayKey = new Date(meta.regularMarketTime * 1000).toLocaleDateString('en-CA', {timeZone: tz});
-    for (let i = timestamps.length - 1; i >= 0; i--){
-      const key = new Date(timestamps[i] * 1000).toLocaleDateString('en-CA', {timeZone: tz});
-      if (key === todayKey && typeof opens[i] === 'number'){
-        return opens[i];
-      }
-    }
-    return null;
-  }
-
-  function marketStateLabel(state){
-    switch(state){
-      case 'REGULAR': return 'market open';
-      case 'PRE': return 'pre-market';
-      case 'POST': case 'POSTPOST': return 'after hours';
-      case 'CLOSED': return 'market closed';
-      default: return state ? state.toLowerCase() : 'unknown';
-    }
-  }
-
-  // ==============================
-  // RENDER
-  // ==============================
   function el(tag, cls, text){
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -259,15 +229,27 @@
     rows.forEach(([label, value, cls]) => {
       const tr = el('tr');
       tr.appendChild(el('td', 'label', label));
-      const valTd = el('td', 'value' + (cls ? ' ' + cls : ''), value);
-      tr.appendChild(valTd);
+      tr.appendChild(el('td', 'value' + (cls ? ' ' + cls : ''), value));
       table.appendChild(tr);
     });
     return table;
   }
 
-  function buildTargets(prevClose, open){
-    const table = el('table', 'targets');
+  function buildBiasBanner(bias, openChangePct){
+    const banner = el('div', 'bias-banner ' + bias);
+    if (bias === 'calls'){
+      banner.textContent = "▲ Today's Open is above Previous Close (" + fmtPct(openChangePct) + ") — CALLS favored";
+    } else if (bias === 'puts'){
+      banner.textContent = "▼ Today's Open is below Previous Close (" + fmtPct(openChangePct) + ") — PUTS favored";
+    } else {
+      banner.textContent = "Today's Open is essentially flat vs Previous Close — no directional bias";
+    }
+    return banner;
+  }
+
+  function buildTargets(prevClose, open, bias){
+    const cls = bias === 'calls' ? 'targets calls-bias' : (bias === 'puts' ? 'targets puts-bias' : 'targets');
+    const table = el('table', cls);
 
     const headRow = el('tr');
     const thCalls = el('th', 'th-calls', 'CALLS (Upside Targets)');
@@ -292,7 +274,11 @@
       const tr = el('tr', rowCls);
       tr.appendChild(el('td', 'tcell', '+' + pct.toFixed(2) + '%'));
       tr.appendChild(el('td', 'lcell', fmtPrice(upVal)));
-      tr.appendChild(el('td', 'ref-cell', 'from\n' + refLabel));
+      const refTd = el('td', 'ref-cell');
+      const l1 = document.createElement('div'); l1.textContent = 'from';
+      const l2 = document.createElement('div'); l2.textContent = refLabel;
+      refTd.appendChild(l1); refTd.appendChild(l2);
+      tr.appendChild(refTd);
       tr.appendChild(el('td', 'pcell', '-' + pct.toFixed(2) + '%'));
       tr.appendChild(el('td', 'pvcell', fmtPrice(downVal)));
       table.appendChild(tr);
@@ -300,18 +286,6 @@
 
     PC_PCTS.forEach(pct => addRow(pct, 'Previous Close', prevClose, 'row-pc'));
     OPEN_PCTS.forEach(pct => addRow(pct, "Today's Open", open, 'row-open'));
-
-    // Fix multi-line ref cell rendering (textContent collapses \n)
-    table.querySelectorAll('.ref-cell').forEach(td => {
-      const parts = td.textContent.split('\n');
-      td.textContent = '';
-      const l1 = document.createElement('div');
-      l1.textContent = parts[0];
-      const l2 = document.createElement('div');
-      l2.textContent = parts[1];
-      td.appendChild(l1);
-      td.appendChild(l2);
-    });
 
     return table;
   }
@@ -327,73 +301,39 @@
   }
 
   function render(d){
+    let bias = 'neutral';
+    if (d.openChangePct > NEUTRAL_THRESHOLD_PCT) bias = 'calls';
+    else if (d.openChangePct < -NEUTRAL_THRESHOLD_PCT) bias = 'puts';
+
     contentEl.innerHTML = '';
     contentEl.appendChild(buildSummary(d.prevClose, d.open, d.openChangePct));
-    contentEl.appendChild(buildTargets(d.prevClose, d.open));
+    contentEl.appendChild(buildBiasBanner(bias, d.openChangePct));
+    contentEl.appendChild(buildTargets(d.prevClose, d.open, bias));
     contentEl.appendChild(buildFooter(d.current, d.lastUpdated));
   }
 
   async function load(){
     refreshBtn.disabled = true;
-    warnBox.style.display = 'none';
     errorBox.style.display = 'none';
 
-    const results = await Promise.allSettled([
-      fetchPrevCloseFromSheet(),
-      fetchYahoo()
-    ]);
+    try {
+      const { prevClose, open, current } = await fetchFromSheet();
+      const openChangePct = ((open - prevClose) / prevClose) * 100;
+      const lastUpdated = new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
 
-    const prevCloseResult = results[0];
-    const yahooResult = results[1];
+      render({ prevClose, open, current, openChangePct, lastUpdated });
 
-    if (prevCloseResult.status === 'rejected' && yahooResult.status === 'rejected') {
-      errorBox.style.display = 'block';
-      errorBox.textContent = 'Both sources failed. Sheet: ' + prevCloseResult.reason.message + ' | Yahoo: ' + yahooResult.reason.message;
-      statusText.textContent = 'error';
-      statusDot.classList.remove('live', 'warn');
-      refreshBtn.disabled = false;
-      return;
-    }
-
-    const prevClose = prevCloseResult.status === 'fulfilled' ? prevCloseResult.value : null;
-
-    let open = null, current = null, lastUpdated = '—', yahooSource = null, marketState = null;
-    if (yahooResult.status === 'fulfilled') {
-      const { result, source } = yahooResult.value;
-      const meta = result.meta;
-      const tz = meta.exchangeTimezoneName || 'America/New_York';
-      open = todaysOpen(result);
-      if (open === null || open === undefined) open = prevClose;
-      current = meta.regularMarketPrice;
-      const quoteTime = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : null;
-      lastUpdated = quoteTime ? quoteTime.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: tz}) : '—';
-      yahooSource = source;
-      marketState = meta.marketState;
-    }
-
-    const openChangePct = (prevClose && open) ? ((open - prevClose) / prevClose) * 100 : null;
-
-    render({prevClose, open, current, openChangePct, lastUpdated});
-
-    const problems = [];
-    if (prevCloseResult.status === 'rejected') problems.push('Previous close (Google Sheet) failed: ' + prevCloseResult.reason.message);
-    if (yahooResult.status === 'rejected') problems.push("Today's open / current price (Yahoo) failed: " + yahooResult.reason.message);
-    if (yahooSource === 'proxy') problems.push('Yahoo data came through a fallback proxy — verify against another source.');
-
-    if (problems.length){
-      warnBox.style.display = 'block';
-      warnBox.textContent = problems.join(' ');
-      statusDot.classList.remove('live');
-      statusDot.classList.add('warn');
-      statusText.textContent = 'partial data';
-    } else {
       statusDot.classList.add('live');
-      statusDot.classList.remove('warn');
-      statusText.textContent = marketState ? marketStateLabel(marketState) : 'loaded';
+      statusText.textContent = 'loaded';
+      fetchedText.textContent = 'fetched ' + new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit'});
+    } catch(e){
+      errorBox.style.display = 'block';
+      errorBox.textContent = e.message || 'Could not load data right now.';
+      statusText.textContent = 'error';
+      statusDot.classList.remove('live');
+    } finally {
+      refreshBtn.disabled = false;
     }
-
-    fetchedText.textContent = 'fetched ' + new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit'});
-    refreshBtn.disabled = false;
   }
 
   refreshBtn.addEventListener('click', load);
