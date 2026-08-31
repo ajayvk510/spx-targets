@@ -19,6 +19,8 @@
     --gray-bg:#f4f5f7;
     --border:#dfe2e7;
     --text:#1c1f26;
+    --gold:#8a6d00;
+    --gold-bg:#fdf6e3;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{background:#ffffff;color:var(--text);}
@@ -46,6 +48,14 @@
   .value.up{color:var(--green);}
   .value.down{color:var(--red);}
 
+  .purchase-row{
+    display:flex;align-items:center;justify-content:space-between;
+    border:1px solid #e9d68b;background:var(--gold-bg);border-radius:5px;
+    padding:7px 10px;margin-bottom:10px;
+  }
+  .purchase-row .label{font-weight:700;font-size:12.5px;color:var(--gold);}
+  .purchase-row .value{font-weight:800;font-size:14px;color:var(--gold);}
+
   .bias-banner{
     text-align:center;font-weight:700;font-size:11px;letter-spacing:0.1px;
     padding:6px 8px;border-radius:5px;margin-bottom:10px;line-height:1.35;
@@ -72,8 +82,6 @@
     padding:6px 4px;text-align:center;font-size:11.5px;border-bottom:1px solid var(--border);
   }
   .targets tr:last-child td{border-bottom:none;}
-  .row-purchase td.tcell, .row-purchase td.lcell{background:#f0f4e8;}
-  .row-purchase td.pcell, .row-purchase td.pvcell{background:#f7f0e8;}
   .row-pc td.tcell, .row-pc td.lcell{background:var(--green-bg);}
   .row-pc td.pcell, .row-pc td.pvcell{background:var(--red-bg);}
   .row-open td.tcell, .row-open td.lcell{background:var(--green-bg2);}
@@ -173,17 +181,14 @@
 
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRawT3EwXWDeuu0cj40cqoEG2Mm18emA_68-v5zG-EdYqsxzhqmZXwsnzpkGEn_DMkjGMhvs_cycjCx/pub?gid=0&single=true&output=csv';
 
-  // Row definitions, in display order.
-  // base: 'prevClose' | 'open' | 'midpoint' (i.e. (prevClose+open)/2)
-  // noFrom: true => ref cell shows just the label, no "from" prefix line
+  // Split Calls/Puts target rows only — Purchasing Point is handled separately as a single value.
   const ROWS = [
-    { pct: 0.10, label: 'Purchasing Point', base: 'midpoint',  rowCls: 'row-purchase', noFrom: true },
-    { pct: 0.20, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
-    { pct: 0.50, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
-    { pct: 0.80, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
-    { pct: 1.00, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
-    { pct: 0.50, label: "Today's Open",      base: 'open',      rowCls: 'row-open' },
-    { pct: 1.00, label: "Today's Open",      base: 'open',      rowCls: 'row-open' }
+    { pct: 0.20, label: 'Previous Close', base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 0.50, label: 'Previous Close', base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 0.80, label: 'Previous Close', base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 1.00, label: 'Previous Close', base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 0.50, label: "Today's Open",   base: 'open',      rowCls: 'row-open' },
+    { pct: 1.00, label: "Today's Open",   base: 'open',      rowCls: 'row-open' }
   ];
 
   // Bias threshold: at/above this, show only the favored side.
@@ -242,6 +247,13 @@
     return table;
   }
 
+  function buildPurchaseRow(midpoint){
+    const wrap = el('div', 'purchase-row');
+    wrap.appendChild(el('span', 'label', 'Purchasing Point (Close+Open)/2'));
+    wrap.appendChild(el('span', 'value', fmtPrice(midpoint)));
+    return wrap;
+  }
+
   function buildBiasBanner(bias, openChangePct){
     const banner = el('div', 'bias-banner ' + bias);
     if (bias === 'calls'){
@@ -261,7 +273,6 @@
     else cls += ' neutral-bias';
 
     const table = el('table', cls);
-    const midpoint = (prevClose + open) / 2;
 
     const headRow = el('tr');
     const thCalls = el('th', 'th-calls', 'CALLS (Upside)');
@@ -280,8 +291,8 @@
     ['Target','Level'].forEach(t => subRow.appendChild(el('th', 'sub-puts', t)));
     table.appendChild(subRow);
 
-    ROWS.forEach(({pct, label, base, rowCls, noFrom}) => {
-      const refBase = base === 'prevClose' ? prevClose : (base === 'open' ? open : midpoint);
+    ROWS.forEach(({pct, label, base, rowCls}) => {
+      const refBase = base === 'prevClose' ? prevClose : open;
       const upVal = refBase * (1 + pct/100);
       const downVal = refBase * (1 - pct/100);
       const tr = el('tr', rowCls);
@@ -289,14 +300,9 @@
       tr.appendChild(el('td', 'lcell', fmtPrice(upVal)));
 
       const refTd = el('td', 'ref-cell');
-      if (noFrom){
-        const only = document.createElement('div'); only.textContent = label;
-        refTd.appendChild(only);
-      } else {
-        const l1 = document.createElement('div'); l1.textContent = 'from';
-        const l2 = document.createElement('div'); l2.textContent = label;
-        refTd.appendChild(l1); refTd.appendChild(l2);
-      }
+      const l1 = document.createElement('div'); l1.textContent = 'from';
+      const l2 = document.createElement('div'); l2.textContent = label;
+      refTd.appendChild(l1); refTd.appendChild(l2);
       tr.appendChild(refTd);
 
       tr.appendChild(el('td', 'pcell', '-' + pct.toFixed(2) + '%'));
@@ -322,8 +328,11 @@
     if (d.openChangePct >= BIAS_THRESHOLD_PCT) bias = 'calls';
     else if (d.openChangePct <= -BIAS_THRESHOLD_PCT) bias = 'puts';
 
+    const midpoint = (d.prevClose + d.open) / 2;
+
     contentEl.innerHTML = '';
     contentEl.appendChild(buildSummary(d.prevClose, d.open, d.openChangePct));
+    contentEl.appendChild(buildPurchaseRow(midpoint));
     contentEl.appendChild(buildBiasBanner(bias, d.openChangePct));
     contentEl.appendChild(buildTargets(d.prevClose, d.open, bias));
     contentEl.appendChild(buildFooter(d.current, d.lastUpdated));
