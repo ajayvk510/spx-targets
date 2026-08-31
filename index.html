@@ -249,7 +249,7 @@
 
   function buildPurchaseRow(midpoint){
     const wrap = el('div', 'purchase-row');
-    wrap.appendChild(el('span', 'label', 'Purchasing Point (Close+Open)/2'));
+    wrap.appendChild(el('span', 'label', 'Purchasing Point:'));
     wrap.appendChild(el('span', 'value', fmtPrice(midpoint)));
     return wrap;
   }
