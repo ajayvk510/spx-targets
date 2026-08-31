@@ -54,17 +54,15 @@
   .bias-banner.puts{background:var(--red-bg);color:var(--red);border:1px solid #e6b3b3;}
   .bias-banner.neutral{background:var(--gray-bg);color:#555;border:1px solid var(--border);}
 
-  .targets{border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:26px;transition:opacity 0.2s ease, filter 0.2s ease;}
+  .targets{border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:26px;}
   .targets th{
     padding:12px 8px;font-size:14px;font-weight:700;color:#fff;text-align:center;
-    transition:opacity 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
   }
   .th-calls{background:var(--green);}
   .th-ref{background:var(--navy);}
   .th-puts{background:var(--red);}
   .targets .sub th{
     font-size:12.5px;font-weight:600;color:#fff;padding:8px;
-    transition:opacity 0.2s ease, filter 0.2s ease;
   }
   .sub .sub-calls{background:#155c2e;}
   .sub .sub-ref{background:var(--navy);}
@@ -72,9 +70,10 @@
 
   .targets td{
     padding:14px 8px;text-align:center;font-size:15px;border-bottom:1px solid var(--border);
-    transition:opacity 0.2s ease, filter 0.2s ease;
   }
   .targets tr:last-child td{border-bottom:none;}
+  .row-purchase td.tcell, .row-purchase td.lcell{background:#f0f4e8;}
+  .row-purchase td.pcell, .row-purchase td.pvcell{background:#f7f0e8;}
   .row-pc td.tcell, .row-pc td.lcell{background:var(--green-bg);}
   .row-pc td.pcell, .row-pc td.pvcell{background:var(--red-bg);}
   .row-open td.tcell, .row-open td.lcell{background:var(--green-bg2);}
@@ -85,26 +84,34 @@
   .pcell{color:var(--red);font-weight:700;}
   .pvcell{font-weight:700;}
 
-  /* Bias styling: dim the unfavored side, emphasize the favored side */
-  .targets.calls-bias .th-puts,
-  .targets.calls-bias .sub-puts,
-  .targets.calls-bias td.pcell,
-  .targets.calls-bias td.pvcell{
-    opacity:0.35;filter:grayscale(55%);
+  /* NEUTRAL state: dull both sides equally */
+  .targets.neutral-bias .th-calls,
+  .targets.neutral-bias .sub-calls,
+  .targets.neutral-bias td.tcell,
+  .targets.neutral-bias td.lcell,
+  .targets.neutral-bias .th-puts,
+  .targets.neutral-bias .sub-puts,
+  .targets.neutral-bias td.pcell,
+  .targets.neutral-bias td.pvcell{
+    opacity:0.4;filter:grayscale(60%);
   }
-  .targets.calls-bias .th-calls{box-shadow:inset 0 0 0 2px #0d4d24;}
-  .targets.calls-bias td.tcell,
-  .targets.calls-bias td.lcell{font-weight:800;}
 
-  .targets.puts-bias .th-calls,
-  .targets.puts-bias .sub-calls,
-  .targets.puts-bias td.tcell,
-  .targets.puts-bias td.lcell{
-    opacity:0.35;filter:grayscale(55%);
+  /* STRONG bias: hide the non-favored side entirely */
+  .targets.calls-only .th-puts,
+  .targets.calls-only .sub-puts,
+  .targets.calls-only td.pcell,
+  .targets.calls-only td.pvcell{
+    display:none;
   }
-  .targets.puts-bias .th-puts{box-shadow:inset 0 0 0 2px #5c0f0f;}
-  .targets.puts-bias td.pcell,
-  .targets.puts-bias td.pvcell{font-weight:800;}
+  .targets.calls-only .th-calls{box-shadow:inset 0 0 0 2px #0d4d24;}
+
+  .targets.puts-only .th-calls,
+  .targets.puts-only .sub-calls,
+  .targets.puts-only td.tcell,
+  .targets.puts-only td.lcell{
+    display:none;
+  }
+  .targets.puts-only .th-puts{box-shadow:inset 0 0 0 2px #5c0f0f;}
 
   .footer{text-align:center;}
   .footer h2{
@@ -176,11 +183,20 @@
 
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRawT3EwXWDeuu0cj40cqoEG2Mm18emA_68-v5zG-EdYqsxzhqmZXwsnzpkGEn_DMkjGMhvs_cycjCx/pub?gid=0&single=true&output=csv';
 
-  const PC_PCTS = [0.20, 0.50, 0.80, 1.00];   // from Previous Close
-  const OPEN_PCTS = [0.50, 1.00];             // from Today's Open
+  // Row definitions, in display order.
+  // base: 'prevClose' or 'open'
+  const ROWS = [
+    { pct: 0.10, label: 'Purchasing Point', base: 'prevClose', rowCls: 'row-purchase' },
+    { pct: 0.20, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 0.50, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 0.80, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 1.00, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
+    { pct: 0.50, label: "Today's Open",      base: 'open',      rowCls: 'row-open' },
+    { pct: 1.00, label: "Today's Open",      base: 'open',      rowCls: 'row-open' }
+  ];
 
-  // Below this % change, treat the open as flat/neutral rather than biased.
-  const NEUTRAL_THRESHOLD_PCT = 0.02;
+  // Bias threshold: at/above this, show only the favored side.
+  const BIAS_THRESHOLD_PCT = 0.20;
 
   function fmtPrice(n){
     if (n === null || n === undefined || isNaN(n)) return '—';
@@ -238,17 +254,21 @@
   function buildBiasBanner(bias, openChangePct){
     const banner = el('div', 'bias-banner ' + bias);
     if (bias === 'calls'){
-      banner.textContent = "▲ Today's Open is above Previous Close (" + fmtPct(openChangePct) + ") — CALLS favored";
+      banner.textContent = "▲ Open is +" + Math.abs(openChangePct).toFixed(2) + "% vs Previous Close — CALLS ONLY";
     } else if (bias === 'puts'){
-      banner.textContent = "▼ Today's Open is below Previous Close (" + fmtPct(openChangePct) + ") — PUTS favored";
+      banner.textContent = "▼ Open is -" + Math.abs(openChangePct).toFixed(2) + "% vs Previous Close — PUTS ONLY";
     } else {
-      banner.textContent = "Today's Open is essentially flat vs Previous Close — no directional bias";
+      banner.textContent = "Open change (" + fmtPct(openChangePct) + ") is under ±" + BIAS_THRESHOLD_PCT.toFixed(2) + "% — no confirmed bias yet";
     }
     return banner;
   }
 
   function buildTargets(prevClose, open, bias){
-    const cls = bias === 'calls' ? 'targets calls-bias' : (bias === 'puts' ? 'targets puts-bias' : 'targets');
+    let cls = 'targets';
+    if (bias === 'calls') cls += ' calls-only';
+    else if (bias === 'puts') cls += ' puts-only';
+    else cls += ' neutral-bias';
+
     const table = el('table', cls);
 
     const headRow = el('tr');
@@ -268,7 +288,8 @@
     ['Target','Level'].forEach(t => subRow.appendChild(el('th', 'sub-puts', t)));
     table.appendChild(subRow);
 
-    function addRow(pct, refLabel, refBase, rowCls){
+    ROWS.forEach(({pct, label, base, rowCls}) => {
+      const refBase = base === 'prevClose' ? prevClose : open;
       const upVal = refBase * (1 + pct/100);
       const downVal = refBase * (1 - pct/100);
       const tr = el('tr', rowCls);
@@ -276,16 +297,13 @@
       tr.appendChild(el('td', 'lcell', fmtPrice(upVal)));
       const refTd = el('td', 'ref-cell');
       const l1 = document.createElement('div'); l1.textContent = 'from';
-      const l2 = document.createElement('div'); l2.textContent = refLabel;
+      const l2 = document.createElement('div'); l2.textContent = label;
       refTd.appendChild(l1); refTd.appendChild(l2);
       tr.appendChild(refTd);
       tr.appendChild(el('td', 'pcell', '-' + pct.toFixed(2) + '%'));
       tr.appendChild(el('td', 'pvcell', fmtPrice(downVal)));
       table.appendChild(tr);
-    }
-
-    PC_PCTS.forEach(pct => addRow(pct, 'Previous Close', prevClose, 'row-pc'));
-    OPEN_PCTS.forEach(pct => addRow(pct, "Today's Open", open, 'row-open'));
+    });
 
     return table;
   }
@@ -302,8 +320,8 @@
 
   function render(d){
     let bias = 'neutral';
-    if (d.openChangePct > NEUTRAL_THRESHOLD_PCT) bias = 'calls';
-    else if (d.openChangePct < -NEUTRAL_THRESHOLD_PCT) bias = 'puts';
+    if (d.openChangePct >= BIAS_THRESHOLD_PCT) bias = 'calls';
+    else if (d.openChangePct <= -BIAS_THRESHOLD_PCT) bias = 'puts';
 
     contentEl.innerHTML = '';
     contentEl.appendChild(buildSummary(d.prevClose, d.open, d.openChangePct));
