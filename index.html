@@ -23,53 +23,53 @@
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{background:#ffffff;color:var(--text);}
   body{
-    display:flex;justify-content:center;padding:28px 16px 60px;
+    display:flex;justify-content:center;padding:14px 12px 30px;
     font-family:'Inter',sans-serif;
   }
-  .card{width:100%;max-width:640px;}
+  .card{width:100%;max-width:440px;}
 
   h1{
-    text-align:center;color:var(--navy);font-weight:800;font-size:30px;
-    letter-spacing:0.3px;
+    text-align:center;color:var(--navy);font-weight:800;font-size:19px;
+    letter-spacing:0.2px;
   }
-  .title-rule{height:3px;background:var(--navy);margin:10px 0 22px 0;border-radius:2px;}
+  .title-rule{height:2px;background:var(--navy);margin:6px 0 12px 0;border-radius:2px;}
 
   table{width:100%;border-collapse:collapse;}
 
-  .summary{margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
-  .summary td{padding:14px 16px;font-size:16px;border-bottom:1px solid var(--border);}
+  .summary{margin-bottom:10px;border:1px solid var(--border);border-radius:5px;overflow:hidden;}
+  .summary td{padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);}
   .summary tr:last-child td{border-bottom:none;}
   .summary tr:nth-child(odd){background:var(--gray-bg);}
   .summary tr:nth-child(even){background:#ffffff;}
   .summary .label{font-weight:700;width:44%;}
-  .summary .value{text-align:center;font-weight:700;font-size:18px;}
+  .summary .value{text-align:center;font-weight:700;font-size:13px;}
   .value.up{color:var(--green);}
   .value.down{color:var(--red);}
 
   .bias-banner{
-    text-align:center;font-weight:700;font-size:13.5px;letter-spacing:0.3px;
-    padding:10px 14px;border-radius:6px;margin-bottom:20px;
+    text-align:center;font-weight:700;font-size:11px;letter-spacing:0.1px;
+    padding:6px 8px;border-radius:5px;margin-bottom:10px;line-height:1.35;
   }
   .bias-banner.calls{background:var(--green-bg);color:var(--green);border:1px solid #b7e2c4;}
   .bias-banner.puts{background:var(--red-bg);color:var(--red);border:1px solid #e6b3b3;}
   .bias-banner.neutral{background:var(--gray-bg);color:#555;border:1px solid var(--border);}
 
-  .targets{border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:26px;}
+  .targets{border:1px solid var(--border);border-radius:5px;overflow:hidden;margin-bottom:12px;}
   .targets th{
-    padding:12px 8px;font-size:14px;font-weight:700;color:#fff;text-align:center;
+    padding:6px 4px;font-size:10.5px;font-weight:700;color:#fff;text-align:center;
   }
   .th-calls{background:var(--green);}
   .th-ref{background:var(--navy);}
   .th-puts{background:var(--red);}
   .targets .sub th{
-    font-size:12.5px;font-weight:600;color:#fff;padding:8px;
+    font-size:9.5px;font-weight:600;color:#fff;padding:4px;
   }
   .sub .sub-calls{background:#155c2e;}
   .sub .sub-ref{background:var(--navy);}
   .sub .sub-puts{background:#7d1616;}
 
   .targets td{
-    padding:14px 8px;text-align:center;font-size:15px;border-bottom:1px solid var(--border);
+    padding:6px 4px;text-align:center;font-size:11.5px;border-bottom:1px solid var(--border);
   }
   .targets tr:last-child td{border-bottom:none;}
   .row-purchase td.tcell, .row-purchase td.lcell{background:#f0f4e8;}
@@ -78,7 +78,7 @@
   .row-pc td.pcell, .row-pc td.pvcell{background:var(--red-bg);}
   .row-open td.tcell, .row-open td.lcell{background:var(--green-bg2);}
   .row-open td.pcell, .row-open td.pvcell{background:var(--red-bg2);}
-  .ref-cell{font-size:13px;color:var(--navy);font-weight:500;line-height:1.3;background:#f8f9fb;}
+  .ref-cell{font-size:9.5px;color:var(--navy);font-weight:500;line-height:1.2;background:#f8f9fb;}
   .tcell{color:var(--green);font-weight:700;}
   .lcell{font-weight:700;}
   .pcell{color:var(--red);font-weight:700;}
@@ -115,42 +115,32 @@
 
   .footer{text-align:center;}
   .footer h2{
-    color:var(--navy);font-weight:800;font-size:18px;letter-spacing:0.5px;
+    color:var(--navy);font-weight:800;font-size:12px;letter-spacing:0.3px;
   }
-  .footer-rule{height:2px;background:var(--navy);margin:8px 0 18px 0;border-radius:2px;}
-  .last-updated-label{color:var(--navy);font-weight:600;font-size:13px;margin-bottom:4px;}
-  .current-price{color:var(--navy);font-weight:800;font-size:34px;}
-  .current-time{color:#5a5f6b;font-size:14px;margin-top:2px;}
+  .footer-rule{height:1.5px;background:var(--navy);margin:5px 0 10px 0;border-radius:2px;}
+  .last-updated-label{color:var(--navy);font-weight:600;font-size:10px;margin-bottom:2px;}
+  .current-price{color:var(--navy);font-weight:800;font-size:22px;}
+  .current-time{color:#5a5f6b;font-size:10.5px;margin-top:1px;}
 
   .controls{
-    display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 14px;
-    font-size:12px;color:#6b7280;margin-top:22px;
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;
+    font-size:10px;color:#6b7280;margin-top:12px;
   }
   .refresh-btn{
-    font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#fff;
-    background:var(--navy);border:none;border-radius:7px;padding:8px 16px;cursor:pointer;
+    font-family:'Inter',sans-serif;font-size:10.5px;font-weight:700;color:#fff;
+    background:var(--navy);border:none;border-radius:6px;padding:5px 12px;cursor:pointer;
   }
   .refresh-btn:disabled{opacity:0.5;cursor:default;}
-  .status{display:flex;align-items:center;gap:6px;}
-  .dot{width:7px;height:7px;border-radius:50%;background:#9ca3af;}
+  .status{display:flex;align-items:center;gap:5px;}
+  .dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;}
   .dot.live{background:var(--green);}
   .error-box{
-    max-width:600px;margin:0 auto 18px auto;padding:12px 14px;background:var(--red-bg);
-    border:1px solid #e6b3b3;border-radius:8px;font-size:12.5px;color:var(--red);line-height:1.5;
+    max-width:440px;margin:0 auto 10px auto;padding:8px 10px;background:var(--red-bg);
+    border:1px solid #e6b3b3;border-radius:6px;font-size:10.5px;color:var(--red);line-height:1.4;
     display:none;
   }
-  .loading-text{text-align:center;color:#6b7280;font-size:14px;padding:30px 0;}
-  .source-note{text-align:center;font-size:11.5px;color:#9ca3af;margin-top:6px;}
-
-  @media (max-width:480px){
-    h1{font-size:24px;}
-    .summary td{padding:11px 12px;font-size:14px;}
-    .summary .value{font-size:15px;}
-    .targets td, .targets th{padding:9px 4px;font-size:12.5px;}
-    .targets .sub th{font-size:10.5px;}
-    .ref-cell{font-size:10.5px;}
-    .current-price{font-size:26px;}
-  }
+  .loading-text{text-align:center;color:#6b7280;font-size:12px;padding:16px 0;}
+  .source-note{text-align:center;font-size:9.5px;color:#9ca3af;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -185,8 +175,9 @@
 
   // Row definitions, in display order.
   // base: 'prevClose' or 'open'
+  // noFrom: true => ref cell shows just the label, no "from" prefix line
   const ROWS = [
-    { pct: 0.10, label: 'Purchasing Point', base: 'prevClose', rowCls: 'row-purchase' },
+    { pct: 0.10, label: 'Purchasing Point', base: 'prevClose', rowCls: 'row-purchase', noFrom: true },
     { pct: 0.20, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
     { pct: 0.50, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
     { pct: 0.80, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
@@ -254,11 +245,11 @@
   function buildBiasBanner(bias, openChangePct){
     const banner = el('div', 'bias-banner ' + bias);
     if (bias === 'calls'){
-      banner.textContent = "▲ Open is +" + Math.abs(openChangePct).toFixed(2) + "% vs Previous Close — CALLS ONLY";
+      banner.textContent = "▲ Open +" + Math.abs(openChangePct).toFixed(2) + "% vs Prev Close — CALLS ONLY";
     } else if (bias === 'puts'){
-      banner.textContent = "▼ Open is -" + Math.abs(openChangePct).toFixed(2) + "% vs Previous Close — PUTS ONLY";
+      banner.textContent = "▼ Open -" + Math.abs(openChangePct).toFixed(2) + "% vs Prev Close — PUTS ONLY";
     } else {
-      banner.textContent = "Open change (" + fmtPct(openChangePct) + ") is under ±" + BIAS_THRESHOLD_PCT.toFixed(2) + "% — no confirmed bias yet";
+      banner.textContent = "Open change (" + fmtPct(openChangePct) + ") under ±" + BIAS_THRESHOLD_PCT.toFixed(2) + "% — no bias yet";
     }
     return banner;
   }
@@ -272,10 +263,10 @@
     const table = el('table', cls);
 
     const headRow = el('tr');
-    const thCalls = el('th', 'th-calls', 'CALLS (Upside Targets)');
+    const thCalls = el('th', 'th-calls', 'CALLS (Upside)');
     thCalls.colSpan = 2;
-    const thRef = el('th', 'th-ref', 'REFERENCE');
-    const thPuts = el('th', 'th-puts', 'PUTS (Downside Targets)');
+    const thRef = el('th', 'th-ref', 'REF');
+    const thPuts = el('th', 'th-puts', 'PUTS (Downside)');
     thPuts.colSpan = 2;
     headRow.appendChild(thCalls);
     headRow.appendChild(thRef);
@@ -288,18 +279,25 @@
     ['Target','Level'].forEach(t => subRow.appendChild(el('th', 'sub-puts', t)));
     table.appendChild(subRow);
 
-    ROWS.forEach(({pct, label, base, rowCls}) => {
+    ROWS.forEach(({pct, label, base, rowCls, noFrom}) => {
       const refBase = base === 'prevClose' ? prevClose : open;
       const upVal = refBase * (1 + pct/100);
       const downVal = refBase * (1 - pct/100);
       const tr = el('tr', rowCls);
       tr.appendChild(el('td', 'tcell', '+' + pct.toFixed(2) + '%'));
       tr.appendChild(el('td', 'lcell', fmtPrice(upVal)));
+
       const refTd = el('td', 'ref-cell');
-      const l1 = document.createElement('div'); l1.textContent = 'from';
-      const l2 = document.createElement('div'); l2.textContent = label;
-      refTd.appendChild(l1); refTd.appendChild(l2);
+      if (noFrom){
+        const only = document.createElement('div'); only.textContent = label;
+        refTd.appendChild(only);
+      } else {
+        const l1 = document.createElement('div'); l1.textContent = 'from';
+        const l2 = document.createElement('div'); l2.textContent = label;
+        refTd.appendChild(l1); refTd.appendChild(l2);
+      }
       tr.appendChild(refTd);
+
       tr.appendChild(el('td', 'pcell', '-' + pct.toFixed(2) + '%'));
       tr.appendChild(el('td', 'pvcell', fmtPrice(downVal)));
       table.appendChild(tr);
