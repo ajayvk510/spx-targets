@@ -174,10 +174,10 @@
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRawT3EwXWDeuu0cj40cqoEG2Mm18emA_68-v5zG-EdYqsxzhqmZXwsnzpkGEn_DMkjGMhvs_cycjCx/pub?gid=0&single=true&output=csv';
 
   // Row definitions, in display order.
-  // base: 'prevClose' or 'open'
+  // base: 'prevClose' | 'open' | 'midpoint' (i.e. (prevClose+open)/2)
   // noFrom: true => ref cell shows just the label, no "from" prefix line
   const ROWS = [
-    { pct: 0.10, label: 'Purchasing Point', base: 'prevClose', rowCls: 'row-purchase', noFrom: true },
+    { pct: 0.10, label: 'Purchasing Point', base: 'midpoint',  rowCls: 'row-purchase', noFrom: true },
     { pct: 0.20, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
     { pct: 0.50, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
     { pct: 0.80, label: 'Previous Close',    base: 'prevClose', rowCls: 'row-pc' },
@@ -261,6 +261,7 @@
     else cls += ' neutral-bias';
 
     const table = el('table', cls);
+    const midpoint = (prevClose + open) / 2;
 
     const headRow = el('tr');
     const thCalls = el('th', 'th-calls', 'CALLS (Upside)');
@@ -280,7 +281,7 @@
     table.appendChild(subRow);
 
     ROWS.forEach(({pct, label, base, rowCls, noFrom}) => {
-      const refBase = base === 'prevClose' ? prevClose : open;
+      const refBase = base === 'prevClose' ? prevClose : (base === 'open' ? open : midpoint);
       const upVal = refBase * (1 + pct/100);
       const downVal = refBase * (1 - pct/100);
       const tr = el('tr', rowCls);
