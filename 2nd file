@@ -1,0 +1,189 @@
+function updateSPXDashboard() {
+
+  const DATA_SHEET_NAME = 'Data';
+  const DASH_SHEET_NAME = 'SPX Dashboard';
+  const BIAS_THRESHOLD_PCT = 0.20;
+
+  // Target rows: [pct, label, base ('prevClose'|'open')]
+  const ROWS = [
+    [0.20, 'Previous Close', 'prevClose'],
+    [0.50, 'Previous Close', 'prevClose'],
+    [0.80, 'Previous Close', 'prevClose'],
+    [1.00, 'Previous Close', 'prevClose'],
+    [0.50, "Today's Open",   'open'],
+    [1.00, "Today's Open",   'open']
+  ];
+
+  const COLOR = {
+    navy: '#1a2744',
+    green: '#1a7a3c',
+    greenBg: '#e9f7ee',
+    greenBg2: '#dcf1e4',
+    red: '#a11d1d',
+    redBg: '#fbeaea',
+    redBg2: '#f7dbdb',
+    grayBg: '#f4f5f7',
+    dullGray: '#9ca3af',
+    dullBg: '#f0f1f3',
+    gold: '#8a6d00',
+    goldBg: '#fdf6e3',
+    white: '#ffffff'
+  };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // ---- Read source data ----
+  const dataSheet = ss.getSheetByName(DATA_SHEET_NAME);
+  if (!dataSheet) throw new Error('Missing "' + DATA_SHEET_NAME + '" sheet with GOOGLEFINANCE formulas.');
+
+  const prevClose = dataSheet.getRange('A2').getValue();
+  const open = dataSheet.getRange('B2').getValue();
+  const current = dataSheet.getRange('C2').getValue();
+
+  if (typeof prevClose !== 'number' || isNaN(prevClose)) throw new Error('Data!A2 (previous_close) is not a valid number.');
+  if (typeof open !== 'number' || isNaN(open)) throw new Error('Data!B2 (today_open) is not a valid number.');
+  if (typeof current !== 'number' || isNaN(current)) throw new Error('Data!C2 (current) is not a valid number.');
+
+  const openChangePct = ((open - prevClose) / prevClose) * 100;
+  const midpoint = (prevClose + open) / 2;
+
+  let bias = 'neutral';
+  if (openChangePct >= BIAS_THRESHOLD_PCT) bias = 'calls';
+  else if (openChangePct <= -BIAS_THRESHOLD_PCT) bias = 'puts';
+
+  // ---- Get / create dashboard sheet ----
+  let sheet = ss.getSheetByName(DASH_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(DASH_SHEET_NAME);
+  sheet.clear();
+  sheet.showColumns(1, 5); // reset any previously hidden columns
+  sheet.setColumnWidths(1, 5, 130);
+
+  let row = 1;
+
+  // ---- Title ----
+  sheet.getRange(row, 1, 1, 5).merge()
+    .setValue('SPX DAILY TARGETS')
+    .setFontWeight('bold').setFontSize(16)
+    .setFontColor(COLOR.navy).setHorizontalAlignment('center')
+    .setBackground(COLOR.white);
+  row++;
+  sheet.getRange(row, 1, 1, 5).merge().setBackground(COLOR.navy);
+  sheet.setRowHeight(row, 4);
+  row += 2;
+
+  // ---- Summary ----
+  function summaryRow(label, value, colorHex){
+    sheet.getRange(row, 1, 1, 2).merge().setValue(label).setFontWeight('bold').setBackground(COLOR.grayBg);
+    const valCell = sheet.getRange(row, 3, 1, 3).merge().setValue(value).setFontWeight('bold').setHorizontalAlignment('center');
+    if (colorHex) valCell.setFontColor(colorHex);
+    row++;
+  }
+  summaryRow('Previous Close', round2(prevClose), null);
+  summaryRow("Today's Open", round2(open), null);
+  summaryRow('Open Change', pctStr(openChangePct), openChangePct > 0 ? COLOR.green : (openChangePct < 0 ? COLOR.red : null));
+  row++;
+
+  // ---- Purchasing Point ----
+  sheet.getRange(row, 1, 1, 3).merge().setValue('Purchasing Point (Close+Open)/2')
+    .setFontWeight('bold').setFontColor(COLOR.gold).setBackground(COLOR.goldBg);
+  sheet.getRange(row, 4, 1, 2).merge().setValue(round2(midpoint))
+    .setFontWeight('bold').setFontColor(COLOR.gold).setBackground(COLOR.goldBg).setHorizontalAlignment('center');
+  row += 2;
+
+  // ---- Bias banner ----
+  let bannerText, bannerColor, bannerBg;
+  if (bias === 'calls'){
+    bannerText = '▲ Open +' + Math.abs(openChangePct).toFixed(2) + '% vs Prev Close — CALLS ONLY';
+    bannerColor = COLOR.green; bannerBg = COLOR.greenBg;
+  } else if (bias === 'puts'){
+    bannerText = '▼ Open -' + Math.abs(openChangePct).toFixed(2) + '% vs Prev Close — PUTS ONLY';
+    bannerColor = COLOR.red; bannerBg = COLOR.redBg;
+  } else {
+    bannerText = 'NO CALLS & NO PUTS TODAY';
+    bannerColor = '#555555'; bannerBg = COLOR.grayBg;
+  }
+  sheet.getRange(row, 1, 1, 5).merge().setValue(bannerText)
+    .setFontWeight('bold').setFontColor(bannerColor).setBackground(bannerBg)
+    .setHorizontalAlignment('center');
+  row += 2;
+
+  // ---- Targets table header ----
+  const headRow = row;
+  sheet.getRange(row, 1, 1, 2).merge().setValue('CALLS (Upside)')
+    .setFontWeight('bold').setFontColor(COLOR.white).setBackground(COLOR.green).setHorizontalAlignment('center');
+  sheet.getRange(row, 3).setValue('REF')
+    .setFontWeight('bold').setFontColor(COLOR.white).setBackground(COLOR.navy).setHorizontalAlignment('center');
+  sheet.getRange(row, 4, 1, 2).merge().setValue('PUTS (Downside)')
+    .setFontWeight('bold').setFontColor(COLOR.white).setBackground(COLOR.red).setHorizontalAlignment('center');
+  row++;
+
+  sheet.getRange(row, 1).setValue('Target').setFontWeight('bold').setFontColor(COLOR.white).setBackground('#155c2e').setHorizontalAlignment('center');
+  sheet.getRange(row, 2).setValue('Level').setFontWeight('bold').setFontColor(COLOR.white).setBackground('#155c2e').setHorizontalAlignment('center');
+  sheet.getRange(row, 3).setValue('').setBackground(COLOR.navy);
+  sheet.getRange(row, 4).setValue('Target').setFontWeight('bold').setFontColor(COLOR.white).setBackground('#7d1616').setHorizontalAlignment('center');
+  sheet.getRange(row, 5).setValue('Level').setFontWeight('bold').setFontColor(COLOR.white).setBackground('#7d1616').setHorizontalAlignment('center');
+  row++;
+
+  // ---- Target rows ----
+  const isDull = (bias === 'neutral');
+  ROWS.forEach(([pct, label, base], i) => {
+    const refBase = base === 'prevClose' ? prevClose : open;
+    const upVal = refBase * (1 + pct / 100);
+    const downVal = refBase * (1 - pct / 100);
+    const bandBg = base === 'prevClose' ? { c: COLOR.greenBg, p: COLOR.redBg } : { c: COLOR.greenBg2, p: COLOR.redBg2 };
+
+    const callTargetCell = sheet.getRange(row, 1).setValue('+' + pct.toFixed(2) + '%');
+    const callLevelCell = sheet.getRange(row, 2).setValue(round2(upVal));
+    const refCell = sheet.getRange(row, 3).setValue('from ' + label).setFontSize(9).setFontColor(COLOR.navy).setHorizontalAlignment('center');
+    const putTargetCell = sheet.getRange(row, 4).setValue('-' + pct.toFixed(2) + '%');
+    const putLevelCell = sheet.getRange(row, 5).setValue(round2(downVal));
+
+    [callTargetCell, callLevelCell].forEach(c => c.setFontWeight('bold').setHorizontalAlignment('center'));
+    [putTargetCell, putLevelCell].forEach(c => c.setFontWeight('bold').setHorizontalAlignment('center'));
+
+    if (isDull){
+      callTargetCell.setFontColor(COLOR.dullGray).setBackground(COLOR.dullBg);
+      callLevelCell.setFontColor(COLOR.dullGray).setBackground(COLOR.dullBg);
+      putTargetCell.setFontColor(COLOR.dullGray).setBackground(COLOR.dullBg);
+      putLevelCell.setFontColor(COLOR.dullGray).setBackground(COLOR.dullBg);
+    } else {
+      callTargetCell.setFontColor(COLOR.green).setBackground(bandBg.c);
+      callLevelCell.setFontColor('#1c1f26').setBackground(bandBg.c);
+      putTargetCell.setFontColor(COLOR.red).setBackground(bandBg.p);
+      putLevelCell.setFontColor('#1c1f26').setBackground(bandBg.p);
+    }
+
+    row++;
+  });
+
+  const lastTargetRow = row - 1;
+  row++;
+
+  // ---- Footer ----
+  sheet.getRange(row, 1, 1, 5).merge().setValue('CURRENT SPX')
+    .setFontWeight('bold').setFontColor(COLOR.navy).setHorizontalAlignment('center');
+  row++;
+  sheet.getRange(row, 1, 1, 5).merge().setValue(round2(current))
+    .setFontWeight('bold').setFontSize(24).setFontColor(COLOR.navy).setHorizontalAlignment('center');
+  row++;
+  const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'h:mm a');
+  sheet.getRange(row, 1, 1, 5).merge().setValue('Last Updated: ' + now)
+    .setFontColor('#5a5f6b').setFontSize(10).setHorizontalAlignment('center');
+
+  // ---- Borders ----
+  sheet.getRange(headRow, 1, lastTargetRow - headRow + 1, 5)
+    .setBorder(true, true, true, true, true, true, '#dfe2e7', SpreadsheetApp.BorderStyle.SOLID);
+
+  // ---- Strong-bias column hiding ----
+  if (bias === 'calls'){
+    sheet.hideColumns(4, 2); // hide Puts Target/Level columns
+  } else if (bias === 'puts'){
+    sheet.hideColumns(1, 2); // hide Calls Target/Level columns
+  }
+
+  function round2(n){ return Math.round(n * 100) / 100; }
+  function pctStr(n){
+    const sign = n > 0 ? '+' : (n < 0 ? '' : '');
+    return sign + n.toFixed(2) + '%';
+  }
+}
