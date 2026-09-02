@@ -261,7 +261,7 @@
     } else if (bias === 'puts'){
       banner.textContent = "▼ Open -" + Math.abs(openChangePct).toFixed(2) + "% vs Prev Close — PUTS ONLY";
     } else {
-      banner.textContent = "Open change (" + fmtPct(openChangePct) + ") under ±" + BIAS_THRESHOLD_PCT.toFixed(2) + "% — no bias yet";
+      banner.textContent = "NO CALLS & NO PUTS TODAY";
     }
     return banner;
   }
